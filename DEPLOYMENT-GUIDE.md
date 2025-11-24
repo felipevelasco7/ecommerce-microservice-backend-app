@@ -957,15 +957,512 @@ gcloud builds log <BUILD_ID>
 
 ---
 
-## Próximos Pasos
+## 11. Despliegue de Microservicios de Negocio
 
-1. Desplegar servicios de negocio restantes (product, order, payment, shipping, favourite)
-2. Configurar API Gateway
-3. Implementar Network Policies
-4. Configurar Ingress Controller
-5. Implementar Prometheus + Grafana para monitoreo
-6. Configurar CI/CD con GitHub Actions
-7. Implementar Horizontal Pod Autoscaler
+Esta sección documenta el despliegue de los 5 microservicios principales: Product, Order, Payment, Shipping y Favourite.
+
+### 11.1 Preparación Común para Todos los Servicios
+
+#### 11.1.1 Actualizar Dependencias en pom.xml
+
+Agregar el driver de PostgreSQL a cada servicio (product, order, payment, shipping, favourite):
+
+```xml
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+    <scope>runtime</scope>
+</dependency>
+```
+
+#### 11.1.2 Actualizar application-dev.yml
+
+Actualizar la configuración de cada servicio para usar PostgreSQL y conectarse a Cloud Config:
+
+```yaml
+server:
+  port: 8500  # Cambiar según servicio
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/product_db}
+    username: ${SPRING_DATASOURCE_USERNAME:ecommerce}
+    password: ${SPRING_DATASOURCE_PASSWORD:ecommerce123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none  # Importante: usar 'none' para evitar conflictos con Flyway
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        use_sql_comments: true
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+logging:
+  level:
+    org:
+      hibernate:
+        SQL: DEBUG
+      springframework:
+        web: DEBUG
+```
+
+**Puertos por servicio:**
+- product-service: 8500
+- order-service: 8300
+- payment-service: 8400
+- shipping-service: 8600
+- favourite-service: 8800
+
+**Bases de datos por servicio:**
+- product-service: product_db
+- order-service: order_db
+- payment-service: payment_db
+- shipping-service: shipping_db
+- favourite-service: favourite_db
+
+#### 11.1.3 Migrar Scripts Flyway a PostgreSQL
+
+**Cambios necesarios en cada archivo SQL de Flyway:**
+
+```sql
+-- ANTES (MySQL)
+user_id INT(11) AUTO_INCREMENT PRIMARY KEY,
+price_unit DECIMAL(10,2),
+is_verified BOOLEAN DEFAULT false,
+created_at LOCALTIMESTAMP NULL_TO_DEFAULT
+
+-- DESPUÉS (PostgreSQL)
+user_id SERIAL PRIMARY KEY,
+price_unit NUMERIC(10,2),
+is_verified BOOLEAN DEFAULT false,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+```
+
+**Script automatizado para actualizar:**
+
+```bash
+# Ejecutar desde la raíz del proyecto
+./scr.sh
+```
+
+O manualmente con sed:
+
+```bash
+for service in product-service order-service payment-service shipping-service favourite-service; do
+  find $service/src/main/resources/db/migration -name "*.sql" -exec sed -i '' \
+    -e 's/INT(11) AUTO_INCREMENT/SERIAL/g' \
+    -e 's/INT(11)/INTEGER/g' \
+    -e 's/DECIMAL/NUMERIC/g' \
+    -e 's/LOCALTIMESTAMP NULL_TO_DEFAULT/CURRENT_TIMESTAMP NOT NULL/g' {} \;
+done
+```
+
+### 11.2 Crear ConfigMaps y Secrets
+
+Para cada servicio, crear el ConfigMap con la configuración del Cloud Config Server:
+
+```bash
+cat > k8s/configmaps/product-service-config.yaml <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/product_db"
+  SPRING_DATASOURCE_USERNAME: "ecommerce"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "none"
+EOF
+```
+
+Crear el Secret:
+
+```bash
+cat > k8s/secrets/product-service-secret.yaml <<'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: product-service-secret
+  namespace: dev
+type: Opaque
+data:
+  SPRING_DATASOURCE_PASSWORD: ZWNvbW1lcmNlMTIz # ecommerce123
+EOF
+```
+
+**Repetir para cada servicio:** order, payment, shipping, favourite
+
+### 11.3 Crear Cloud Build Configurations
+
+Crear archivo de build para cada servicio con la flag `--no-cache`:
+
+```bash
+cat > cloudbuild-product-service.yaml <<'EOF'
+steps:
+  - name: 'gcr.io/cloud-builders/mvn'
+    id: 'build-jar'
+    args: ['clean', 'package', '-pl', 'product-service', '-am', '-DskipTests', '-U']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args: 
+      - 'build'
+      - '--no-cache'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/product-service:0.1.0'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/product-service:latest'
+      - '-f'
+      - 'product-service/Dockerfile'
+      - '.'
+
+images:
+  - 'gcr.io/$PROJECT_ID/product-service:0.1.0'
+  - 'gcr.io/$PROJECT_ID/product-service:latest'
+
+timeout: 600s
+options:
+  machineType: 'E2_HIGHCPU_8'
+EOF
+```
+
+**Repetir para:** order-service, payment-service, shipping-service, favourite-service
+
+### 11.4 Crear Deployments de Kubernetes
+
+Crear deployment para cada servicio con configuración de recursos apropiada:
+
+```bash
+cat > k8s/deployments/product-service.yaml <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      initContainers:
+      - name: wait-for-eureka
+        image: busybox:1.36
+        command: ['sh', '-c', 'until wget -qO- http://service-discovery:8761/actuator/health 2>/dev/null; do echo "Waiting for Eureka..."; sleep 3; done']
+      - name: wait-for-postgres
+        image: postgres:13-alpine
+        command: ['sh', '-c', 'until PGPASSWORD=ecommerce123 psql -h postgres -U ecommerce -d product_db -c "\\q" 2>/dev/null; do echo "Waiting for PostgreSQL..."; sleep 3; done']
+      containers:
+      - name: product-service
+        image: gcr.io/PROJECT_ID/product-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8500
+        envFrom:
+        - configMapRef:
+            name: product-service-config
+        - secretRef:
+            name: product-service-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /product-service/actuator/health/liveness
+            port: 8500
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /product-service/actuator/health/readiness
+            port: 8500
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: product-service
+  ports:
+  - port: 8500
+    targetPort: 8500
+    protocol: TCP
+EOF
+```
+
+**Ajustar para cada servicio:** puertos, nombres de bases de datos, rutas de health checks
+
+### 11.5 Script Automatizado de Despliegue
+
+Crear script para automatizar todo el proceso:
+
+```bash
+cat > build-and-deploy-all.sh <<'EOF'
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+PROJECT_ID=$(gcloud config get-value project)
+echo "🚀 Iniciando despliegue automatizado..."
+
+# Lista de servicios a desplegar
+SERVICES=("order-service" "payment-service" "shipping-service" "favourite-service")
+
+for SERVICE in "${SERVICES[@]}"; do
+    echo ""
+    echo "======================================="
+    echo "📦 Construyendo ${SERVICE}..."
+    echo "======================================="
+    
+    gcloud builds submit --config=cloudbuild-${SERVICE}.yaml .
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Build de ${SERVICE} exitoso"
+        
+        echo ""
+        echo "📦 Desplegando ${SERVICE}..."
+        echo "==============================="
+        
+        kubectl apply -f k8s/configmaps/${SERVICE}-config.yaml
+        kubectl apply -f k8s/secrets/${SERVICE}-secret.yaml
+        sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/${SERVICE}.yaml | kubectl apply -f -
+        
+        echo "✅ ${SERVICE} desplegado"
+    else
+        echo "❌ Error en build de ${SERVICE}"
+        exit 1
+    fi
+done
+
+echo ""
+echo "🎉 ¡Proceso completado!"
+echo ""
+echo "📊 Estado de todos los pods:"
+kubectl get pods -n dev
+
+echo ""
+echo "🔍 Servicios en Eureka:"
+echo "kubectl port-forward -n dev svc/service-discovery 8761:8761"
+echo "Luego visita: http://localhost:8761"
+EOF
+
+chmod +x build-and-deploy-all.sh
+```
+
+### 11.6 Ejecutar Despliegue Automatizado
+
+```bash
+# Ejecutar script
+./build-and-deploy-all.sh
+```
+
+**Tiempo total estimado:** 15-20 minutos para los 4 servicios
+
+### 11.7 Resolución de Problemas Comunes
+
+#### Error: CrashLoopBackOff - Health Check Failures
+
+**Problema:** El pod se reinicia constantemente antes de completar el startup.
+
+**Causa:** Con recursos limitados (100m CPU), la aplicación puede tardar más de 5 minutos en arrancar.
+
+**Solución:** Aumentar tiempos de probes en el deployment:
+
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "200m"
+startupProbe:
+  httpGet:
+    path: /favourite-service/actuator/health
+    port: 8800
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 50  # 60s + (50 * 10s) = 560 segundos total
+livenessProbe:
+  httpGet:
+    path: /favourite-service/actuator/health/liveness
+    port: 8800
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /favourite-service/actuator/health/readiness
+    port: 8800
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+```
+
+#### Error: Pod Stuck in Pending - Insufficient CPU
+
+**Problema:** `0/5 nodes are available: 5 Insufficient cpu`
+
+**Causa:** El clúster ha alcanzado su límite máximo de nodos y CPU.
+
+**Solución 1 - Reducir recursos del pod:**
+
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"  # Reducido de 250m
+  limits:
+    memory: "512Mi"
+    cpu: "200m"  # Reducido de 500m
+```
+
+**Solución 2 - Escalar el clúster:**
+
+```bash
+gcloud container clusters update ecommerce-cluster \
+    --zone=us-central1-a \
+    --max-nodes=8
+```
+
+#### Error: Hibernate Schema Validation Failed
+
+**Problema:** `Schema-validation: wrong column type encountered... found [numeric], but expecting [decimal]`
+
+**Causa:** Hibernate valida estrictamente los tipos y PostgreSQL convierte DECIMAL a NUMERIC internamente.
+
+**Solución:** Cambiar `ddl-auto` de `validate` a `none`:
+
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none  # Dejar que Flyway maneje el schema
+```
+
+#### Verificar Tiempos de Startup
+
+Ver cuánto tarda cada servicio en arrancar:
+
+```bash
+kubectl logs -n dev <pod-name> | grep "Started.*Application in"
+```
+
+Ejemplo de salida:
+```
+Started FavouriteServiceApplication in 337.705 seconds (JVM running for 353.196)
+```
+
+### 11.8 Verificación Final
+
+```bash
+# Ver todos los pods
+kubectl get pods -n dev
+
+# Estado esperado:
+# NAME                                 READY   STATUS    RESTARTS   AGE
+# cloud-config-xxxxx                   1/1     Running   0          Xh
+# favourite-service-xxxxx              1/1     Running   0          Xm
+# order-service-xxxxx                  1/1     Running   0          Xm
+# payment-service-xxxxx                1/1     Running   0          Xm
+# postgres-0                           1/1     Running   0          Xh
+# product-service-xxxxx                1/1     Running   0          Xm
+# service-discovery-xxxxx              1/1     Running   0          Xh
+# shipping-service-xxxxx               1/1     Running   0          Xm
+# user-service-xxxxx                   1/1     Running   0          Xh
+
+# Verificar registro en Eureka
+kubectl port-forward -n dev svc/service-discovery 8761:8761
+# Abrir http://localhost:8761
+```
+
+**Servicios esperados en Eureka:**
+- SERVICE-DISCOVERY
+- CLOUD-CONFIG
+- USER-SERVICE
+- PRODUCT-SERVICE
+- ORDER-SERVICE
+- PAYMENT-SERVICE
+- SHIPPING-SERVICE
+- FAVOURITE-SERVICE
+
+### 11.9 Comandos de Limpieza
+
+Si necesitas redeployar un servicio:
+
+```bash
+# Eliminar deployment específico
+kubectl delete deployment product-service -n dev
+
+# Reconstruir imagen
+gcloud builds submit --config=cloudbuild-product-service.yaml .
+
+# Redesplegar
+PROJECT_ID=$(gcloud config get-value project)
+sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/product-service.yaml | kubectl apply -f -
+
+# Monitorear
+kubectl get pods -n dev -w
+```
+
+### 11.10 Resumen de Configuraciones Críticas
+
+| Servicio | Puerto | DB | CPU Request | Memory Request | Startup Time |
+|----------|--------|-----|-------------|----------------|--------------|
+| product-service | 8500 | product_db | 250m | 512Mi | ~90s |
+| order-service | 8300 | order_db | 250m | 512Mi | ~120s |
+| payment-service | 8400 | payment_db | 250m | 512Mi | ~90s |
+| shipping-service | 8600 | shipping_db | 250m | 512Mi | ~100s |
+| favourite-service | 8800 | favourite_db | 100m | 256Mi | ~337s |
+
+**Nota:** favourite-service tiene recursos reducidos debido a limitaciones del clúster. Si tienes recursos disponibles, aumenta a 250m CPU / 512Mi RAM.
+
+---
+
+## 12. Próximos Pasos
+
+1. ✅ Desplegar servicios de negocio (product, order, payment, shipping, favourite)
+2. Desplegar proxy-client
+3. Desplegar API Gateway con LoadBalancer
+4. Implementar Network Policies
+5. Configurar Ingress Controller
+6. Implementar Prometheus + Grafana para monitoreo
+7. Configurar CI/CD con GitHub Actions
+8. Implementar Horizontal Pod Autoscaler
 
 ---
 
@@ -992,3 +1489,15 @@ export CLUSTER_ZONE="us-central1-a"
 **Última actualización:** 24 de noviembre de 2025
 **Versión:** 1.0
 **Estado:** ✅ Probado y funcionando
+
+---
+
+## Actualización de Versión
+
+**v2.0 - 24 de noviembre de 2025:**
+- ✅ Sección 11 agregada: Despliegue automatizado de microservicios de negocio
+- ✅ Documentación de troubleshooting para CrashLoopBackOff
+- ✅ Configuración de startupProbe para aplicaciones de arranque lento
+- ✅ Script de despliegue automatizado (build-and-deploy-all.sh)
+- ✅ 9 microservicios desplegados y verificados en GKE
+- ✅ Resolución de problemas de recursos (CPU/Memory) en el clúster

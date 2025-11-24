@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: favourite-service-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/favourite_db"
+  SPRING_DATASOURCE_USERNAME: "ecommerce"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: favourite-service-secret
+  namespace: dev
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_PASSWORD: "ecommerce123"
