@@ -1453,16 +1453,507 @@ kubectl get pods -n dev -w
 
 ---
 
-## 12. Próximos Pasos
+## 12. Despliegue de Proxy-Client y API Gateway
+
+### 12.1 Contexto
+
+Después de desplegar los 9 microservicios base, necesitamos completar la arquitectura con:
+- **proxy-client**: Cliente proxy para interacciones frontend (puerto 8900)
+- **api-gateway**: Gateway principal con acceso externo vía LoadBalancer (puerto 8080)
+
+### 12.2 Desafíos Encontrados
+
+#### Problema 1: Insuficiencia de Recursos CPU
+
+Al desplegar proxy-client, el pod quedó en estado `Pending`:
+
+```bash
+kubectl describe pod -n dev proxy-client-xxxxx
+# Events: 0/5 nodes are available: 5 Insufficient cpu
+```
+
+**Causa:** Clúster alcanzó máximo de 5 nodos con CPU insuficiente para nuevos pods.
+
+**Solución:** Escalar el clúster aumentando el máximo de nodos:
+
+```bash
+# Aumentar capacidad del clúster
+gcloud container clusters update ecommerce-cluster \
+    --zone=us-central1-a \
+    --max-nodes=8 \
+    --enable-autoscaling
+
+# Verificar creación de nuevo nodo
+kubectl get nodes
+# El autoscaler creará automáticamente nodos adicionales (5 → 6)
+```
+
+**Resultado:** El pod transitó de `Pending` → `Running` en ~60 segundos tras la creación del 6º nodo.
+
+#### Problema 2: Health Checks con 404 en Proxy-Client
+
+El pod proxy-client entraba en `CrashLoopBackOff`:
+
+```bash
+kubectl describe pod -n dev proxy-client-xxxxx
+# Events: Liveness probe failed: HTTP probe failed with statuscode: 404
+#         Readiness probe failed: HTTP probe failed with statuscode: 404
+```
+
+**Causa:** La aplicación usa contexto `/app` pero los health checks buscaban `/actuator/health`.
+
+**Solución:** Actualizar el deployment para incluir el contexto correcto:
+
+```yaml
+# k8s/deployments/proxy-client.yaml
+livenessProbe:
+  httpGet:
+    path: /app/actuator/health/liveness  # Añadir /app
+    port: 8900
+readinessProbe:
+  httpGet:
+    path: /app/actuator/health/readiness  # Añadir /app
+    port: 8900
+```
+
+#### Problema 3: Pod Duplicado de Favourite-Service
+
+Al restaurar recursos de favourite-service (100m→250m CPU), Kubernetes creó un segundo pod fallido:
+
+```bash
+kubectl get pods -n dev
+# favourite-service-8dfbcb68-24rsm    1/1     Running          0          50m
+# favourite-service-99766fdcc-b8fjj   0/1     InvalidImageName 0          10m
+```
+
+**Causa:** El `sed` no reemplazó `PROJECT_ID` en la imagen del deployment, quedando:
+```
+image: gcr.io/PROJECT_ID/favourite-service:latest  # ❌ Literal incorrecto
+```
+
+**Solución:**
+
+```bash
+# Aplicar deployment correctamente con sustitución
+export PROJECT_ID=$(gcloud config get-value project)
+sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/favourite-service.yaml | kubectl apply -f -
+
+# Eliminar pod fallido
+kubectl delete pod -n dev favourite-service-99766fdcc-b8fjj
+```
+
+### 12.3 Construcción de Imágenes
+
+#### Proxy-Client
+
+```bash
+# Crear cloudbuild-proxy-client.yaml
+cat > cloudbuild-proxy-client.yaml << 'EOF'
+steps:
+  - name: 'maven:3.8.4-openjdk-11'
+    id: 'build-jar'
+    entrypoint: 'mvn'
+    args: ['clean', 'package', '-DskipTests', '-pl', 'proxy-client', '-am']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args: [
+      'build',
+      '--no-cache',
+      '-t', 'gcr.io/$PROJECT_ID/proxy-client:0.1.0',
+      '-t', 'gcr.io/$PROJECT_ID/proxy-client:latest',
+      '-f', 'proxy-client/Dockerfile',
+      '.'
+    ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/proxy-client:0.1.0'
+  - 'gcr.io/$PROJECT_ID/proxy-client:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+timeout: '600s'
+EOF
+
+# Construir imagen
+gcloud builds submit --config=cloudbuild-proxy-client.yaml .
+```
+
+**Resultado:** BUILD SUCCESS en 1m31s
+
+#### API Gateway
+
+```bash
+# Crear cloudbuild-api-gateway.yaml
+cat > cloudbuild-api-gateway.yaml << 'EOF'
+steps:
+  - name: 'maven:3.8.4-openjdk-11'
+    id: 'build-jar'
+    entrypoint: 'mvn'
+    args: ['clean', 'package', '-DskipTests', '-pl', 'api-gateway', '-am']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args: [
+      'build',
+      '--no-cache',
+      '-t', 'gcr.io/$PROJECT_ID/api-gateway:0.1.0',
+      '-t', 'gcr.io/$PROJECT_ID/api-gateway:latest',
+      '-f', 'api-gateway/Dockerfile',
+      '.'
+    ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/api-gateway:0.1.0'
+  - 'gcr.io/$PROJECT_ID/api-gateway:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+timeout: '600s'
+EOF
+
+# Construir imagen
+gcloud builds submit --config=cloudbuild-api-gateway.yaml .
+```
+
+**Resultado:** BUILD SUCCESS en 3m13s
+
+### 12.4 Configuración de Kubernetes
+
+#### Proxy-Client ConfigMap
+
+```bash
+cat > k8s/configmaps/proxy-client-config.yaml << 'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-client-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296"
+EOF
+
+kubectl apply -f k8s/configmaps/proxy-client-config.yaml
+```
+
+#### API Gateway ConfigMap
+
+```bash
+cat > k8s/configmaps/api-gateway-config.yaml << 'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296"
+EOF
+
+kubectl apply -f k8s/configmaps/api-gateway-config.yaml
+```
+
+### 12.5 Deployments
+
+#### Proxy-Client Deployment
+
+```bash
+cat > k8s/deployments/proxy-client.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy-client
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxy-client
+  template:
+    metadata:
+      labels:
+        app: proxy-client
+    spec:
+      initContainers:
+      - name: wait-for-eureka
+        image: busybox:1.36
+        command: ['sh', '-c', 'until wget -qO- http://service-discovery:8761/actuator/health 2>/dev/null; do echo "Waiting for Eureka..."; sleep 3; done']
+      containers:
+      - name: proxy-client
+        image: gcr.io/PROJECT_ID/proxy-client:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8900
+        envFrom:
+        - configMapRef:
+            name: proxy-client-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /app/actuator/health/liveness
+            port: 8900
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /app/actuator/health/readiness
+            port: 8900
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-client
+  namespace: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: proxy-client
+  ports:
+  - port: 8900
+    targetPort: 8900
+    protocol: TCP
+EOF
+
+# Desplegar
+PROJECT_ID=$(gcloud config get-value project)
+sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/proxy-client.yaml | kubectl apply -f -
+```
+
+**Nota importante:** Los health checks incluyen el contexto `/app` porque la aplicación lo requiere.
+
+#### API Gateway Deployment con LoadBalancer
+
+```bash
+cat > k8s/deployments/api-gateway.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      initContainers:
+      - name: wait-for-eureka
+        image: busybox:1.36
+        command: ['sh', '-c', 'until wget -qO- http://service-discovery:8761/actuator/health 2>/dev/null; do echo "Waiting for Eureka..."; sleep 3; done']
+      containers:
+      - name: api-gateway
+        image: gcr.io/PROJECT_ID/api-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: api-gateway-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: dev
+spec:
+  type: LoadBalancer
+  selector:
+    app: api-gateway
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+EOF
+
+# Desplegar
+PROJECT_ID=$(gcloud config get-value project)
+sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/api-gateway.yaml | kubectl apply -f -
+```
+
+**Diferencia clave:** El servicio api-gateway usa `type: LoadBalancer` para obtener una IP pública externa.
+
+### 12.6 Verificación Final
+
+```bash
+# Verificar todos los pods
+kubectl get pods -n dev
+
+# Resultado esperado (11/11 servicios):
+# NAME                                 READY   STATUS    RESTARTS   AGE
+# api-gateway-96d8cd7df-kvglq          1/1     Running   0          4m
+# cloud-config-6bf65c6667-k4kzx        1/1     Running   0          15h
+# favourite-service-67bff5cc9c-pr46c   1/1     Running   0          3h
+# order-service-59bcd5669f-wvws4       1/1     Running   0          11h
+# payment-service-96f88d57b-rn9sn      1/1     Running   0          11h
+# postgres-0                           1/1     Running   0          14h
+# product-service-5b5b9c599c-zpzt8     1/1     Running   0          11h
+# proxy-client-7486dc6984-rqgpz        1/1     Running   0          4h
+# service-discovery-c5c669f7c-86dp4    1/1     Running   0          14h
+# shipping-service-6f585f6556-wkc9w    1/1     Running   0          11h
+# user-service-658947cdcd-n48zs        1/1     Running   0          12h
+
+# Obtener IP externa del API Gateway
+kubectl get svc -n dev api-gateway
+
+# NAME          TYPE           CLUSTER-IP       EXTERNAL-IP    PORT(S)        AGE
+# api-gateway   LoadBalancer   34.118.237.222   34.31.129.29   80:30471/TCP   4m
+
+# Probar acceso externo
+curl http://34.31.129.29/actuator/health
+```
+
+### 12.7 Tabla de Servicios Completa
+
+| Servicio | Puerto | Tipo | IP Externa | Estado |
+|----------|--------|------|------------|--------|
+| service-discovery | 8761 | ClusterIP | - | ✅ Running |
+| cloud-config | 9296 | ClusterIP | - | ✅ Running |
+| postgres | 5432 | ClusterIP | - | ✅ Running |
+| user-service | 8100 | ClusterIP | - | ✅ Running |
+| product-service | 8500 | ClusterIP | - | ✅ Running |
+| order-service | 8300 | ClusterIP | - | ✅ Running |
+| payment-service | 8400 | ClusterIP | - | ✅ Running |
+| shipping-service | 8600 | ClusterIP | - | ✅ Running |
+| favourite-service | 8800 | ClusterIP | - | ✅ Running |
+| proxy-client | 8900 | ClusterIP | - | ✅ Running |
+| api-gateway | 8080 | LoadBalancer | 34.31.129.29 | ✅ Running |
+
+### 12.8 Troubleshooting Específico
+
+#### Pod en Pending por CPU
+
+```bash
+# Síntoma
+kubectl get pods -n dev
+# proxy-client-xxxxx   0/1     Pending   0          5m
+
+# Diagnóstico
+kubectl describe pod -n dev proxy-client-xxxxx
+# Events: 0/5 nodes are available: 5 Insufficient cpu
+
+# Solución
+gcloud container clusters update ecommerce-cluster \
+    --zone=us-central1-a \
+    --max-nodes=8
+
+# Verificar autoscaling
+kubectl get nodes -w
+```
+
+#### Health Checks con 404
+
+```bash
+# Síntoma
+kubectl describe pod -n dev proxy-client-xxxxx
+# Events: Liveness probe failed: HTTP probe failed with statuscode: 404
+
+# Diagnóstico - verificar contexto de la aplicación
+kubectl logs -n dev proxy-client-xxxxx | grep "Tomcat initialized"
+# Tomcat initialized with port(s): 8900 (http)
+# Initializing Spring embedded WebApplicationContext
+# Root WebApplicationContext: initialization at [/app]
+
+# Solución - actualizar path del health check
+# Cambiar /actuator/health → /app/actuator/health
+```
+
+#### Pod Duplicado con InvalidImageName
+
+```bash
+# Síntoma
+kubectl get pods -n dev
+# favourite-service-8dfbcb68-24rsm    1/1     Running          0          50m
+# favourite-service-99766fdcc-b8fjj   0/1     InvalidImageName 0          10m
+
+# Diagnóstico
+kubectl describe pod -n dev favourite-service-99766fdcc-b8fjj | grep Image
+# Image: gcr.io/PROJECT_ID/favourite-service:latest  # ❌ Literal
+
+# Solución
+export PROJECT_ID=$(gcloud config get-value project)
+sed "s/PROJECT_ID/$PROJECT_ID/g" k8s/deployments/favourite-service.yaml | kubectl apply -f -
+kubectl delete pod -n dev favourite-service-99766fdcc-b8fjj
+```
+
+### 12.9 Restauración de Recursos
+
+Después de escalar el clúster, se pueden restaurar los recursos de favourite-service:
+
+```yaml
+# k8s/deployments/favourite-service.yaml
+resources:
+  requests:
+    memory: "512Mi"    # Aumentado de 256Mi
+    cpu: "250m"        # Aumentado de 100m
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Ajustar startup probe para tiempo reducido
+startupProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8800
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  failureThreshold: 30  # Reducido de 50 (tiempo esperado ~120s vs 337s)
+```
+
+---
+
+## 13. Próximos Pasos
 
 1. ✅ Desplegar servicios de negocio (product, order, payment, shipping, favourite)
-2. Desplegar proxy-client
-3. Desplegar API Gateway con LoadBalancer
-4. Implementar Network Policies
-5. Configurar Ingress Controller
-6. Implementar Prometheus + Grafana para monitoreo
-7. Configurar CI/CD con GitHub Actions
-8. Implementar Horizontal Pod Autoscaler
+2. ✅ Desplegar proxy-client con health checks corregidos
+3. ✅ Desplegar API Gateway con LoadBalancer y acceso externo
+4. ✅ Escalar clúster para recursos adecuados (max-nodes: 5→8)
+5. Implementar Network Policies
+6. Configurar Ingress Controller
+7. Implementar Prometheus + Grafana para monitoreo
+8. Configurar CI/CD con GitHub Actions
+9. Implementar Horizontal Pod Autoscaler
 
 ---
 
@@ -1487,12 +1978,20 @@ export CLUSTER_ZONE="us-central1-a"
 ---
 
 **Última actualización:** 24 de noviembre de 2025
-**Versión:** 1.0
-**Estado:** ✅ Probado y funcionando
+**Versión:** 2.1
+**Estado:** ✅ Despliegue completo (11/11 microservicios)
 
 ---
 
 ## Actualización de Versión
+
+**v2.1 - 24 de noviembre de 2025:**
+- ✅ Sección 12 agregada: Despliegue de proxy-client y api-gateway
+- ✅ Documentación de escalado del clúster (max-nodes: 5→8)
+- ✅ Solución a health checks con contexto /app
+- ✅ Corrección de pods duplicados por InvalidImageName
+- ✅ Configuración de LoadBalancer para acceso externo
+- ✅ Sistema completo: 11/11 microservicios desplegados
 
 **v2.0 - 24 de noviembre de 2025:**
 - ✅ Sección 11 agregada: Despliegue automatizado de microservicios de negocio
