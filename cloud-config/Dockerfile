@@ -1,11 +1,12 @@
+FROM eclipse-temurin:11-jre-alpine
 
-FROM openjdk:11
-ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
-WORKDIR /home/app
-COPY cloud-config/ .
-ADD cloud-config/target/cloud-config-v${PROJECT_VERSION}.jar cloud-config.jar
+LABEL maintainer="ecommerce-project"
+
+WORKDIR /app
+
+ARG JAR_FILE=cloud-config/target/*.jar
+COPY ${JAR_FILE} app.jar
+
 EXPOSE 9296
-ENTRYPOINT ["java", "-jar", "cloud-config.jar"]
 
-
+ENTRYPOINT ["java", "-jar", "app.jar"]

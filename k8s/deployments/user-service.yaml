@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296/"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/user_db"
+  SPRING_DATASOURCE_USERNAME: "ecommerce"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  SPRING_JPA_SHOW_SQL: "true"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-service-secret
+  namespace: dev
+type: Opaque
+data:
+  SPRING_DATASOURCE_PASSWORD: ZWNvbW1lcmNlMTIz # ecommerce123
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: dev
+  labels:
+    app: user-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      initContainers:
+      - name: wait-for-eureka
+        image: busybox:1.36
+        command: ['sh', '-c', 'until wget -qO- http://service-discovery:8761/actuator/health 2>/dev/null; do echo "waiting for eureka..."; sleep 3; done; echo "eureka is up"']
+      - name: wait-for-postgres
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -zv postgres 5432; do echo "waiting for postgres..."; sleep 3; done; echo "postgres is up"']
+      - name: wait-for-db-init
+        image: postgres:13-alpine
+        command: 
+        - sh
+        - -c
+        - |
+          until PGPASSWORD=ecommerce123 psql -h postgres -U ecommerce -d user_db -c '\q' 2>/dev/null; do 
+            echo "waiting for user_db to be ready..."
+            sleep 3
+          done
+          echo "user_db is ready"
+      containers:
+      - name: user-service
+        image: gcr.io/PROJECT_ID/user-service:0.1.0
+        ports:
+        - containerPort: 8700
+        envFrom:
+        - configMapRef:
+            name: user-service-config
+        - secretRef:
+            name: user-service-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8700
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8700
+          initialDelaySeconds: 90
+          periodSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: dev
+spec:
+  selector:
+    app: user-service
+  ports:
+    - protocol: TCP
+      port: 8700
+      targetPort: 8700
+  type: ClusterIP

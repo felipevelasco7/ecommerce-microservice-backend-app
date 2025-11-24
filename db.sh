@@ -1,0 +1,15 @@
+-- Create databases for each service
+CREATE DATABASE IF NOT EXISTS user_db;
+CREATE DATABASE IF NOT EXISTS product_db;
+CREATE DATABASE IF NOT EXISTS order_db;
+CREATE DATABASE IF NOT EXISTS payment_db;
+CREATE DATABASE IF NOT EXISTS shipping_db;
+CREATE DATABASE IF NOT EXISTS favourite_db;
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON DATABASE user_db TO ecommerce;
+GRANT ALL PRIVILEGES ON DATABASE product_db TO ecommerce;
+GRANT ALL PRIVILEGES ON DATABASE order_db TO ecommerce;
+GRANT ALL PRIVILEGES ON DATABASE payment_db TO ecommerce;
+GRANT ALL PRIVILEGES ON DATABASE shipping_db TO ecommerce;
+GRANT ALL PRIVILEGES ON DATABASE favourite_db TO ecommerce;

@@ -1,12 +1,12 @@
+FROM eclipse-temurin:11-jre-alpine
 
-FROM openjdk:11
-ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
-WORKDIR /home/app
-ENV SPRING_PROFILES_ACTIVE dev
-COPY proxy-client/ .
-ADD proxy-client/target/proxy-client-v${PROJECT_VERSION}.jar proxy-client.jar
+LABEL maintainer="ecommerce-project"
+
+WORKDIR /app
+
+ARG JAR_FILE=proxy-client/target/*.jar
+COPY ${JAR_FILE} app.jar
+
 EXPOSE 8900
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "proxy-client.jar"]
 
-
+ENTRYPOINT ["java", "-jar", "app.jar"]
