@@ -1,0 +1,342 @@
+---
+# AlertManager Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'default-receiver'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-receiver'
+        continue: true
+      - match:
+          severity: warning
+        receiver: 'warning-receiver'
+    
+    receivers:
+    - name: 'default-receiver'
+      webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+    
+    - name: 'critical-receiver'
+      webhook_configs:
+      - url: 'http://localhost:5001/critical'
+        send_resolved: true
+    
+    - name: 'warning-receiver'
+      webhook_configs:
+      - url: 'http://localhost:5001/warning'
+        send_resolved: true
+    
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'cluster', 'service']
+---
+# Prometheus Alert Rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: monitoring
+data:
+  alert-rules.yml: |
+    groups:
+    - name: ecommerce_pods
+      interval: 30s
+      rules:
+      # Alert when pod is down
+      - alert: PodDown
+        expr: up{job="kubernetes-pods"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Pod {{ $labels.pod }} is down"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been down for more than 5 minutes."
+      
+      # Alert when pod is restarting frequently
+      - alert: PodRestartingTooOften
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Pod {{ $labels.pod }} restarting frequently"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 15 minutes."
+      
+      # Alert when deployment has no available replicas
+      - alert: DeploymentReplicasUnavailable
+        expr: kube_deployment_status_replicas_available == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Deployment {{ $labels.deployment }} has no available replicas"
+          description: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has 0 available replicas."
+    
+    - name: ecommerce_resources
+      interval: 30s
+      rules:
+      # Alert when pod memory usage is high
+      - alert: PodHighMemoryUsage
+        expr: (container_memory_usage_bytes{pod=~".*-service.*"} / container_spec_memory_limit_bytes{pod=~".*-service.*"}) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "Pod {{ $labels.pod }} high memory usage"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its memory limit."
+      
+      # Alert when pod CPU usage is high
+      - alert: PodHighCPUUsage
+        expr: (rate(container_cpu_usage_seconds_total{pod=~".*-service.*"}[5m]) / container_spec_cpu_quota{pod=~".*-service.*"} * 100000) > 85
+        for: 10m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "Pod {{ $labels.pod }} high CPU usage"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is using {{ $value }}% of its CPU limit."
+      
+      # Alert when PVC is almost full
+      - alert: PersistentVolumeAlmostFull
+        expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "PVC {{ $labels.persistentvolumeclaim }} almost full"
+          description: "PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is {{ $value | humanizePercentage }} full."
+    
+    - name: ecommerce_services
+      interval: 30s
+      rules:
+      # Alert when service is down (no endpoints)
+      - alert: ServiceDown
+        expr: kube_service_status_load_balancer_ingress == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "Service {{ $labels.service }} has no endpoints"
+          description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has no available endpoints."
+      
+      # Alert when HPA is at max replicas
+      - alert: HPAMaxedOut
+        expr: kube_horizontalpodautoscaler_status_current_replicas >= kube_horizontalpodautoscaler_spec_max_replicas
+        for: 15m
+        labels:
+          severity: warning
+          component: autoscaling
+        annotations:
+          summary: "HPA {{ $labels.horizontalpodautoscaler }} at maximum replicas"
+          description: "HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} has been at maximum replicas for 15 minutes. Consider increasing max replicas."
+      
+      # Alert when HPA cannot scale
+      - alert: HPAUnableToScale
+        expr: kube_horizontalpodautoscaler_status_condition{condition="ScalingLimited",status="true"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          component: autoscaling
+        annotations:
+          summary: "HPA {{ $labels.horizontalpodautoscaler }} unable to scale"
+          description: "HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} is unable to scale."
+    
+    - name: ecommerce_database
+      interval: 30s
+      rules:
+      # Alert when PostgreSQL is down
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database has been down for more than 2 minutes. This affects all microservices."
+      
+      # Alert when backup fails
+      - alert: PostgreSQLBackupFailed
+        expr: kube_job_status_failed{job_name=~"postgres-backup.*"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "PostgreSQL backup failed"
+          description: "Backup job {{ $labels.job_name }} has failed. Check backup logs immediately."
+      
+      # Alert when no backup in 25 hours
+      - alert: PostgreSQLNoRecentBackup
+        expr: (time() - kube_job_status_completion_time{job_name=~"postgres-backup.*"}) > 90000
+        for: 1h
+        labels:
+          severity: warning
+          component: backup
+        annotations:
+          summary: "No PostgreSQL backup in 25+ hours"
+          description: "No successful backup has completed in the last 25 hours. Check CronJob status."
+    
+    - name: ecommerce_network
+      interval: 30s
+      rules:
+      # Alert when Ingress is unavailable
+      - alert: IngressControllerDown
+        expr: up{job="ingress-nginx"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: networking
+        annotations:
+          summary: "Ingress Controller is down"
+          description: "Nginx Ingress Controller has been down for more than 5 minutes. External access is affected."
+      
+      # Alert when network policy blocks legitimate traffic
+      - alert: NetworkPolicyBlockingTraffic
+        expr: increase(networkpolicy_drop_count_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Network Policy blocking high traffic volume"
+          description: "Network policies have blocked {{ $value }} packets in the last 5 minutes. Review policies."
+    
+    - name: ecommerce_monitoring
+      interval: 30s
+      rules:
+      # Alert when Prometheus is running out of space
+      - alert: PrometheusStorageFull
+        expr: (prometheus_tsdb_storage_blocks_bytes / prometheus_tsdb_retention_limit_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus storage almost full"
+          description: "Prometheus storage is {{ $value | humanizePercentage }} full. Consider increasing retention or storage."
+      
+      # Alert when scrape targets are down
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus target {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape metrics from {{ $labels.job }} target {{ $labels.instance }}."
+      
+      # Alert when too many targets are down
+      - alert: PrometheusTooManyTargetsDown
+        expr: (count(up == 0) / count(up)) > 0.3
+        for: 5m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "More than 30% of Prometheus targets are down"
+          description: "{{ $value | humanizePercentage }} of Prometheus scrape targets are down. Check cluster health."
+---
+# AlertManager Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        component: monitoring
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.26.0
+        args:
+        - --config.file=/etc/alertmanager/alertmanager.yml
+        - --storage.path=/alertmanager
+        - --web.external-url=http://localhost:9093
+        ports:
+        - name: web
+          containerPort: 9093
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: storage
+          mountPath: /alertmanager
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9093
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9093
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: storage
+        emptyDir: {}
+---
+# AlertManager Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    component: monitoring
+spec:
+  type: ClusterIP
+  ports:
+  - name: web
+    port: 9093
+    targetPort: 9093
+  selector:
+    app: alertmanager

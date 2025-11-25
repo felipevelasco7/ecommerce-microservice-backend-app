@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce Microservices - Tienda</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .status-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .status-card.online {
+            border-left-color: #28a745;
+        }
+
+        .status-card.offline {
+            border-left-color: #dc3545;
+        }
+
+        .status-card h3 {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .status-card p {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .product-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .product-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .product-card .price {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .product-card .stock {
+            color: #28a745;
+            font-size: 0.9em;
+        }
+
+        .product-card .category {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #dc3545;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+
+        .api-info {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #0066cc;
+        }
+
+        .api-info h3 {
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+
+        .api-info code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .monitoring-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .monitoring-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .monitoring-link:hover {
+            transform: scale(1.05);
+        }
+
+        #cartCount {
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛍️ E-Commerce Microservices</h1>
+            <p>Plataforma de comercio electrónico con arquitectura de microservicios en Kubernetes</p>
+            <p>Carrito: <span id="cartCount">0</span> productos</p>
+        </header>
+
+        <div class="status-bar">
+            <h2 style="margin-bottom: 15px;">Estado de Microservicios</h2>
+            <div class="status-grid" id="statusGrid">
+                <div class="status-card">
+                    <h3>Cargando...</h3>
+                    <p>⏳</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="api-info">
+                <h3>ℹ️ Información de Conexión</h3>
+                <p><strong>API Gateway:</strong> <code id="apiUrl">Cargando...</code></p>
+                <p><strong>Ingress IP:</strong> <code>35.223.30.48</code></p>
+                <p><strong>Servicios Activos:</strong> <span id="serviceCount">--</span></p>
+            </div>
+
+            <div class="section">
+                <h2>📦 Catálogo de Productos</h2>
+                <div id="productsContainer" class="loading">
+                    Cargando productos...
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📊 Monitoreo y Observabilidad</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    <strong>Nota:</strong> Para usar estos links, agrega a /etc/hosts:
+                    <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">35.223.30.48 grafana.ecommerce.local prometheus.ecommerce.local zipkin.ecommerce.local eureka.ecommerce.local</code>
+                </p>
+                <div class="monitoring-links">
+                    <a href="https://grafana.ecommerce.local" target="_blank" class="monitoring-link">
+                        📈 Grafana<br><small>Dashboards</small><br><small style="font-size: 0.7em;">admin/admin123</small>
+                    </a>
+                    <a href="http://prometheus.ecommerce.local" target="_blank" class="monitoring-link">
+                        📊 Prometheus<br><small>Métricas</small>
+                    </a>
+                    <a href="http://zipkin.ecommerce.local" target="_blank" class="monitoring-link">
+                        🔍 Zipkin<br><small>Trazas</small>
+                    </a>
+                    <a href="http://eureka.ecommerce.local" target="_blank" class="monitoring-link">
+                        🌐 Eureka<br><small>Service Discovery</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>Proyecto Final - Plataformas Escalables 2025</strong></p>
+            <p>Google Kubernetes Engine (GKE) | Nginx Ingress | Prometheus | Grafana | Zipkin</p>
+        </footer>
+    </div>
+
+    <script>
+        // Configuración de la API - Usar path relativo a través del proxy en Ingress
+        const API_BASE = '/api';
+        let cart = [];
+
+        // Actualizar URL en la UI
+        document.getElementById('apiUrl').textContent = window.location.origin + API_BASE;
+
+        // Función para hacer requests a la API (sin validar certificados SSL)
+        async function apiRequest(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    // El navegador manejará el certificado auto-firmado
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error(`Error en ${endpoint}:`, error);
+                return null;
+            }
+        }
+
+        // Cargar estado de los servicios
+        async function loadServiceStatus() {
+            const health = await apiRequest('/actuator/health');
+            
+            if (health && health.components && health.components.discoveryComposite) {
+                const discoveryClient = health.components.discoveryComposite.components?.discoveryClient;
+                const eureka = health.components.discoveryComposite.components?.eureka;
+                
+                const services = eureka?.details?.applications || {};
+                const statusGrid = document.getElementById('statusGrid');
+                const serviceCount = document.getElementById('serviceCount');
+                
+                const serviceNames = Object.keys(services);
+                serviceCount.textContent = serviceNames.length;
+                
+                statusGrid.innerHTML = serviceNames.map(name => {
+                    const count = services[name];
+                    const isOnline = count > 0;
+                    return `
+                        <div class="status-card ${isOnline ? 'online' : 'offline'}">
+                            <h3>${name.replace('-SERVICE', '')}</h3>
+                            <p>${isOnline ? '✅ Online' : '❌ Offline'} (${count})</p>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Cargar productos
+        async function loadProducts() {
+            const container = document.getElementById('productsContainer');
+            
+            const products = await apiRequest('/product-service/api/products');
+            
+            // La API devuelve {collection: [...]} no {content: [...]}
+            const productList = products?.collection || products?.content || [];
+            
+            if (!productList || productList.length === 0) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>⚠️ No se pudieron cargar los productos</strong>
+                        <p>Verifica que el servicio de productos esté corriendo:</p>
+                        <code>kubectl get pods -n dev | grep product-service</code>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = '';
+            container.className = 'products-grid';
+            
+            productList.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <h3>${product.productTitle || 'Producto sin nombre'}</h3>
+                    <p class="price">$${(product.priceUnit || 0).toFixed(2)}</p>
+                    <p class="stock">Stock: ${product.quantity || 0} unidades</p>
+                    <p>SKU: ${product.sku || 'N/A'}</p>
+                    ${product.category ? `<span class="category">${product.category.categoryTitle}</span>` : ''}
+                    <button class="btn btn-success" onclick="addToCart(${product.productId}, '${product.productTitle}', ${product.priceUnit})">
+                        🛒 Agregar al Carrito
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Agregar al carrito
+        function addToCart(productId, productTitle, price) {
+            cart.push({ productId, productTitle, price });
+            updateCartCount();
+            
+            // Mostrar notificación
+            const notification = document.createElement('div');
+            notification.className = 'success';
+            notification.innerHTML = `<strong>✅ Producto agregado:</strong> ${productTitle}`;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.zIndex = '9999';
+            notification.style.minWidth = '300px';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // Actualizar contador del carrito
+        function updateCartCount() {
+            document.getElementById('cartCount').textContent = cart.length;
+        }
+
+        // Ver carrito
+        function viewCart() {
+            if (cart.length === 0) {
+                alert('El carrito está vacío');
+                return;
+            }
+            
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            const items = cart.map(item => `- ${item.productTitle}: $${item.price.toFixed(2)}`).join('\n');
+            
+            alert(`🛒 Tu Carrito:\n\n${items}\n\nTotal: $${total.toFixed(2)}`);
+        }
+
+        // Inicializar aplicación
+        async function init() {
+            console.log('🚀 Iniciando E-Commerce...');
+            await loadServiceStatus();
+            await loadProducts();
+            console.log('✅ Aplicación cargada');
+        }
+
+        // Cargar cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Recargar estado cada 30 segundos
+        setInterval(loadServiceStatus, 30000);
+    </script>
+</body>
+</html>

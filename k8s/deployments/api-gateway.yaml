@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8200"
+        prometheus.io/path: "/actuator/prometheus"
     spec:
       initContainers:
       - name: wait-for-eureka
@@ -19,7 +23,7 @@ spec:
         command: ['sh', '-c', 'until wget -qO- http://service-discovery:8761/actuator/health 2>/dev/null; do echo "Waiting for Eureka..."; sleep 3; done']
       containers:
       - name: api-gateway
-        image: gcr.io/PROJECT_ID/api-gateway:latest
+        image: gcr.io/axiomatic-fiber-479102-k7/api-gateway:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

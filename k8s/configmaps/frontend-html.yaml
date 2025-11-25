@@ -1,0 +1,178 @@
+apiVersion: v1
+data:
+  index.html: "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n    <meta charset=\"UTF-8\">\n
+    \   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n
+    \   <title>E-Commerce Microservices - Tienda</title>\n    <style>\n        * {\n
+    \           margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n
+    \       }\n\n        body {\n            font-family: 'Segoe UI', Tahoma, Geneva,
+    Verdana, sans-serif;\n            background: linear-gradient(135deg, #667eea
+    0%, #764ba2 100%);\n            min-height: 100vh;\n            padding: 20px;\n
+    \       }\n\n        .container {\n            max-width: 1200px;\n            margin:
+    0 auto;\n            background: white;\n            border-radius: 10px;\n            box-shadow:
+    0 20px 60px rgba(0,0,0,0.3);\n            overflow: hidden;\n        }\n\n        header
+    {\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n
+    \           color: white;\n            padding: 30px;\n            text-align:
+    center;\n        }\n\n        header h1 {\n            font-size: 2.5em;\n            margin-bottom:
+    10px;\n        }\n\n        header p {\n            font-size: 1.1em;\n            opacity:
+    0.9;\n        }\n\n        .status-bar {\n            background: #f8f9fa;\n            padding:
+    20px;\n            border-bottom: 2px solid #e9ecef;\n        }\n\n        .status-grid
+    {\n            display: grid;\n            grid-template-columns: repeat(auto-fit,
+    minmax(200px, 1fr));\n            gap: 15px;\n        }\n\n        .status-card
+    {\n            background: white;\n            padding: 15px;\n            border-radius:
+    8px;\n            border-left: 4px solid #667eea;\n            box-shadow: 0 2px
+    4px rgba(0,0,0,0.1);\n        }\n\n        .status-card.online {\n            border-left-color:
+    #28a745;\n        }\n\n        .status-card.offline {\n            border-left-color:
+    #dc3545;\n        }\n\n        .status-card h3 {\n            font-size: 0.9em;\n
+    \           color: #6c757d;\n            margin-bottom: 5px;\n        }\n\n        .status-card
+    p {\n            font-size: 1.2em;\n            font-weight: bold;\n        }\n\n
+    \       .main-content {\n            padding: 30px;\n        }\n\n        .section
+    {\n            margin-bottom: 40px;\n        }\n\n        .section h2 {\n            color:
+    #667eea;\n            margin-bottom: 20px;\n            padding-bottom: 10px;\n
+    \           border-bottom: 2px solid #e9ecef;\n        }\n\n        .products-grid
+    {\n            display: grid;\n            grid-template-columns: repeat(auto-fill,
+    minmax(250px, 1fr));\n            gap: 20px;\n        }\n\n        .product-card
+    {\n            background: #f8f9fa;\n            border-radius: 8px;\n            padding:
+    20px;\n            transition: transform 0.3s, box-shadow 0.3s;\n            cursor:
+    pointer;\n        }\n\n        .product-card:hover {\n            transform: translateY(-5px);\n
+    \           box-shadow: 0 10px 20px rgba(0,0,0,0.1);\n        }\n\n        .product-card
+    h3 {\n            color: #333;\n            margin-bottom: 10px;\n        }\n\n
+    \       .product-card .price {\n            font-size: 1.5em;\n            color:
+    #667eea;\n            font-weight: bold;\n            margin: 10px 0;\n        }\n\n
+    \       .product-card .stock {\n            color: #28a745;\n            font-size:
+    0.9em;\n        }\n\n        .product-card .category {\n            background:
+    #667eea;\n            color: white;\n            padding: 5px 10px;\n            border-radius:
+    15px;\n            font-size: 0.8em;\n            display: inline-block;\n            margin-top:
+    10px;\n        }\n\n        .btn {\n            background: #667eea;\n            color:
+    white;\n            border: none;\n            padding: 12px 24px;\n            border-radius:
+    5px;\n            font-size: 1em;\n            cursor: pointer;\n            transition:
+    background 0.3s;\n            margin-top: 10px;\n            width: 100%;\n        }\n\n
+    \       .btn:hover {\n            background: #5568d3;\n        }\n\n        .btn-success
+    {\n            background: #28a745;\n        }\n\n        .btn-success:hover {\n
+    \           background: #218838;\n        }\n\n        .loading {\n            text-align:
+    center;\n            padding: 40px;\n            color: #6c757d;\n        }\n\n
+    \       .error {\n            background: #f8d7da;\n            color: #721c24;\n
+    \           padding: 15px;\n            border-radius: 5px;\n            margin:
+    20px 0;\n            border-left: 4px solid #dc3545;\n        }\n\n        .success
+    {\n            background: #d4edda;\n            color: #155724;\n            padding:
+    15px;\n            border-radius: 5px;\n            margin: 20px 0;\n            border-left:
+    4px solid #28a745;\n        }\n\n        .api-info {\n            background:
+    #e7f3ff;\n            padding: 20px;\n            border-radius: 8px;\n            border-left:
+    4px solid #0066cc;\n        }\n\n        .api-info h3 {\n            color: #0066cc;\n
+    \           margin-bottom: 10px;\n        }\n\n        .api-info code {\n            background:
+    #f8f9fa;\n            padding: 2px 6px;\n            border-radius: 3px;\n            font-family:
+    'Courier New', monospace;\n        }\n\n        footer {\n            background:
+    #343a40;\n            color: white;\n            text-align: center;\n            padding:
+    20px;\n        }\n\n        .monitoring-links {\n            display: grid;\n
+    \           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n            gap:
+    15px;\n            margin-top: 20px;\n        }\n\n        .monitoring-link {\n
+    \           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            color:
+    white;\n            padding: 15px;\n            border-radius: 8px;\n            text-decoration:
+    none;\n            text-align: center;\n            transition: transform 0.3s;\n
+    \       }\n\n        .monitoring-link:hover {\n            transform: scale(1.05);\n
+    \       }\n\n        #cartCount {\n            background: #dc3545;\n            color:
+    white;\n            border-radius: 50%;\n            padding: 5px 10px;\n            font-size:
+    0.8em;\n            margin-left: 10px;\n        }\n    </style>\n</head>\n<body>\n
+    \   <div class=\"container\">\n        <header>\n            <h1>\U0001F6CD️ E-Commerce
+    Microservices</h1>\n            <p>Plataforma de comercio electrónico con arquitectura
+    de microservicios en Kubernetes</p>\n            <p>Carrito: <span id=\"cartCount\">0</span>
+    productos</p>\n        </header>\n\n        <div class=\"status-bar\">\n            <h2
+    style=\"margin-bottom: 15px;\">Estado de Microservicios</h2>\n            <div
+    class=\"status-grid\" id=\"statusGrid\">\n                <div class=\"status-card\">\n
+    \                   <h3>Cargando...</h3>\n                    <p>⏳</p>\n                </div>\n
+    \           </div>\n        </div>\n\n        <div class=\"main-content\">\n            <div
+    class=\"api-info\">\n                <h3>ℹ️ Información de Conexión</h3>\n                <p><strong>API
+    Gateway:</strong> <code id=\"apiUrl\">Cargando...</code></p>\n                <p><strong>Ingress
+    IP:</strong> <code>35.223.30.48</code></p>\n                <p><strong>Servicios
+    Activos:</strong> <span id=\"serviceCount\">--</span></p>\n            </div>\n\n
+    \           <div class=\"section\">\n                <h2>\U0001F4E6 Catálogo de
+    Productos</h2>\n                <div id=\"productsContainer\" class=\"loading\">\n
+    \                   Cargando productos...\n                </div>\n            </div>\n\n
+    \           <div class=\"section\">\n                <h2>\U0001F4CA Monitoreo
+    y Observabilidad</h2>\n                <div class=\"monitoring-links\">\n                    <a
+    href=\"https://grafana.ecommerce.local\" target=\"_blank\" class=\"monitoring-link\">\n
+    \                       \U0001F4C8 Grafana<br><small>Dashboards</small>\n                    </a>\n
+    \                   <a href=\"http://prometheus.ecommerce.local\" target=\"_blank\"
+    class=\"monitoring-link\">\n                        \U0001F4CA Prometheus<br><small>Métricas</small>\n
+    \                   </a>\n                    <a href=\"http://zipkin.ecommerce.local\"
+    target=\"_blank\" class=\"monitoring-link\">\n                        \U0001F50D
+    Zipkin<br><small>Trazas</small>\n                    </a>\n                    <a
+    href=\"http://eureka.ecommerce.local\" target=\"_blank\" class=\"monitoring-link\">\n
+    \                       \U0001F310 Eureka<br><small>Service Discovery</small>\n
+    \                   </a>\n                </div>\n            </div>\n        </div>\n\n
+    \       <footer>\n            <p><strong>Proyecto Final - Plataformas Escalables
+    2025</strong></p>\n            <p>Google Kubernetes Engine (GKE) | Nginx Ingress
+    | Prometheus | Grafana | Zipkin</p>\n        </footer>\n    </div>\n\n    <script>\n
+    \       // Configuración de la API\n        const API_BASE = 'https://35.223.30.48';\n
+    \       let cart = [];\n\n        // Actualizar URL en la UI\n        document.getElementById('apiUrl').textContent
+    = API_BASE;\n\n        // Función para hacer requests a la API\n        async
+    function apiRequest(endpoint) {\n            try {\n                const response
+    = await fetch(`${API_BASE}${endpoint}`, {\n                    method: 'GET',\n
+    \                   headers: {\n                        'Accept': 'application/json',\n
+    \                   }\n                });\n                \n                if
+    (!response.ok) {\n                    throw new Error(`HTTP ${response.status}:
+    ${response.statusText}`);\n                }\n                \n                return
+    await response.json();\n            } catch (error) {\n                console.error(`Error
+    en ${endpoint}:`, error);\n                return null;\n            }\n        }\n\n
+    \       // Cargar estado de los servicios\n        async function loadServiceStatus()
+    {\n            const health = await apiRequest('/actuator/health');\n            \n
+    \           if (health && health.components && health.components.discoveryComposite)
+    {\n                const services = health.components.discoveryComposite.details.services
+    || {};\n                const statusGrid = document.getElementById('statusGrid');\n
+    \               const serviceCount = document.getElementById('serviceCount');\n
+    \               \n                const serviceNames = Object.keys(services);\n
+    \               serviceCount.textContent = serviceNames.length;\n                \n
+    \               statusGrid.innerHTML = serviceNames.map(name => {\n                    const
+    count = services[name];\n                    const isOnline = count > 0;\n                    return
+    `\n                        <div class=\"status-card ${isOnline ? 'online' : 'offline'}\">\n
+    \                           <h3>${name.replace('-SERVICE', '')}</h3>\n                            <p>${isOnline
+    ? '✅ Online' : '❌ Offline'} (${count})</p>\n                        </div>\n                    `;\n
+    \               }).join('');\n            }\n        }\n\n        // Cargar productos\n
+    \       async function loadProducts() {\n            const container = document.getElementById('productsContainer');\n
+    \           \n            const products = await apiRequest('/product-service/api/products');\n
+    \           \n            if (!products || !products.content || products.content.length
+    === 0) {\n                container.innerHTML = `\n                    <div class=\"error\">\n
+    \                       <strong>⚠️ No se pudieron cargar los productos</strong>\n
+    \                       <p>Verifica que el servicio de productos esté corriendo:</p>\n
+    \                       <code>kubectl get pods -n dev | grep product-service</code>\n
+    \                   </div>\n                `;\n                return;\n            }\n
+    \           \n            container.innerHTML = '';\n            container.className
+    = 'products-grid';\n            \n            products.content.forEach(product
+    => {\n                const card = document.createElement('div');\n                card.className
+    = 'product-card';\n                card.innerHTML = `\n                    <h3>${product.productTitle
+    || 'Producto sin nombre'}</h3>\n                    <p class=\"price\">$${(product.priceUnit
+    || 0).toFixed(2)}</p>\n                    <p class=\"stock\">Stock: ${product.quantity
+    || 0} unidades</p>\n                    <p>SKU: ${product.sku || 'N/A'}</p>\n
+    \                   ${product.category ? `<span class=\"category\">${product.category.categoryTitle}</span>`
+    : ''}\n                    <button class=\"btn btn-success\" onclick=\"addToCart(${product.productId},
+    '${product.productTitle}', ${product.priceUnit})\">\n                        \U0001F6D2
+    Agregar al Carrito\n                    </button>\n                `;\n                container.appendChild(card);\n
+    \           });\n        }\n\n        // Agregar al carrito\n        function
+    addToCart(productId, productTitle, price) {\n            cart.push({ productId,
+    productTitle, price });\n            updateCartCount();\n            \n            //
+    Mostrar notificación\n            const notification = document.createElement('div');\n
+    \           notification.className = 'success';\n            notification.innerHTML
+    = `<strong>✅ Producto agregado:</strong> ${productTitle}`;\n            notification.style.position
+    = 'fixed';\n            notification.style.top = '20px';\n            notification.style.right
+    = '20px';\n            notification.style.zIndex = '9999';\n            notification.style.minWidth
+    = '300px';\n            document.body.appendChild(notification);\n            \n
+    \           setTimeout(() => notification.remove(), 3000);\n        }\n\n        //
+    Actualizar contador del carrito\n        function updateCartCount() {\n            document.getElementById('cartCount').textContent
+    = cart.length;\n        }\n\n        // Ver carrito\n        function viewCart()
+    {\n            if (cart.length === 0) {\n                alert('El carrito está
+    vacío');\n                return;\n            }\n            \n            const
+    total = cart.reduce((sum, item) => sum + item.price, 0);\n            const items
+    = cart.map(item => `- ${item.productTitle}: $${item.price.toFixed(2)}`).join('\\n');\n
+    \           \n            alert(`\U0001F6D2 Tu Carrito:\\n\\n${items}\\n\\nTotal:
+    $${total.toFixed(2)}`);\n        }\n\n        // Inicializar aplicación\n        async
+    function init() {\n            console.log('\U0001F680 Iniciando E-Commerce...');\n
+    \           await loadServiceStatus();\n            await loadProducts();\n            console.log('✅
+    Aplicación cargada');\n        }\n\n        // Cargar cuando el DOM esté listo\n
+    \       document.addEventListener('DOMContentLoaded', init);\n\n        // Recargar
+    estado cada 30 segundos\n        setInterval(loadServiceStatus, 30000);\n    </script>\n</body>\n</html>\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2025-11-25T05:17:17Z"
+  name: frontend-html
+  namespace: dev
+  resourceVersion: "1764047837663727013"
+  uid: 4c5f40c7-fb27-4ae6-a093-ca33d3e00383

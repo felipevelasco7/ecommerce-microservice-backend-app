@@ -1,0 +1,255 @@
+---
+# PVC for storing PostgreSQL backups
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup-pvc
+  namespace: dev
+  labels:
+    app: postgres
+    component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 20Gi  # 20GB for backups
+---
+# ConfigMap with backup script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-backup-script
+  namespace: dev
+  labels:
+    app: postgres
+    component: backup
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "=================================================="
+    echo "PostgreSQL Backup Script"
+    echo "Started at: $(date)"
+    echo "=================================================="
+    
+    # Configuration
+    BACKUP_DIR="/backups"
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    BACKUP_FILE="postgres_backup_${TIMESTAMP}.sql.gz"
+    RETENTION_DAYS=7
+    
+    # PostgreSQL connection details
+    PGHOST="postgres.dev.svc.cluster.local"
+    PGPORT="5432"
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    
+    # Create backup directory if it doesn't exist
+    mkdir -p ${BACKUP_DIR}
+    
+    echo "Creating backup: ${BACKUP_FILE}"
+    
+    # Dump all databases
+    pg_dumpall -h ${PGHOST} -p ${PGPORT} -U ${POSTGRES_USER} | gzip > ${BACKUP_DIR}/${BACKUP_FILE}
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Backup created successfully: ${BACKUP_FILE}"
+        BACKUP_SIZE=$(du -h ${BACKUP_DIR}/${BACKUP_FILE} | cut -f1)
+        echo "Backup size: ${BACKUP_SIZE}"
+    else
+        echo "❌ Backup failed!"
+        exit 1
+    fi
+    
+    # Clean up old backups (keep only last RETENTION_DAYS days)
+    echo "Cleaning up backups older than ${RETENTION_DAYS} days..."
+    find ${BACKUP_DIR} -name "postgres_backup_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
+    
+    # List current backups
+    echo "Current backups:"
+    ls -lh ${BACKUP_DIR}/postgres_backup_*.sql.gz 2>/dev/null || echo "No backups found"
+    
+    echo "=================================================="
+    echo "Backup completed at: $(date)"
+    echo "=================================================="
+  
+  restore.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "=================================================="
+    echo "PostgreSQL Restore Script"
+    echo "Started at: $(date)"
+    echo "=================================================="
+    
+    # Configuration
+    BACKUP_DIR="/backups"
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    PGHOST="postgres.dev.svc.cluster.local"
+    PGPORT="5432"
+    
+    # Check if backup file is specified
+    if [ -z "$1" ]; then
+        echo "Available backups:"
+        ls -lh ${BACKUP_DIR}/postgres_backup_*.sql.gz 2>/dev/null || echo "No backups found"
+        echo ""
+        echo "Usage: $0 <backup_file>"
+        echo "Example: $0 postgres_backup_20251124_120000.sql.gz"
+        exit 1
+    fi
+    
+    BACKUP_FILE="$1"
+    BACKUP_PATH="${BACKUP_DIR}/${BACKUP_FILE}"
+    
+    # Check if backup file exists
+    if [ ! -f "${BACKUP_PATH}" ]; then
+        echo "❌ Backup file not found: ${BACKUP_PATH}"
+        exit 1
+    fi
+    
+    echo "Restoring from backup: ${BACKUP_FILE}"
+    echo "⚠️  WARNING: This will overwrite the current database!"
+    echo "Waiting 5 seconds... (Ctrl+C to cancel)"
+    sleep 5
+    
+    # Restore database
+    gunzip -c ${BACKUP_PATH} | psql -h ${PGHOST} -p ${PGPORT} -U ${POSTGRES_USER}
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Database restored successfully from: ${BACKUP_FILE}"
+    else
+        echo "❌ Restore failed!"
+        exit 1
+    fi
+    
+    echo "=================================================="
+    echo "Restore completed at: $(date)"
+    echo "=================================================="
+---
+# ServiceAccount for backup jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-backup-sa
+  namespace: dev
+  labels:
+    app: postgres
+    component: backup
+---
+# Role for backup jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-backup-role
+  namespace: dev
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+---
+# RoleBinding for backup jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-backup-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postgres-backup-role
+subjects:
+- kind: ServiceAccount
+  name: postgres-backup-sa
+  namespace: dev
+---
+# CronJob for automated backups (runs daily at 2 AM)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup-cronjob
+  namespace: dev
+  labels:
+    app: postgres
+    component: backup
+spec:
+  # Schedule: Run every day at 2:00 AM UTC
+  schedule: "0 2 * * *"
+  
+  # Keep last 3 successful jobs and last 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  
+  # Don't allow concurrent backups
+  concurrencyPolicy: Forbid
+  
+  # Start deadline in seconds (5 minutes)
+  startingDeadlineSeconds: 300
+  
+  jobTemplate:
+    metadata:
+      labels:
+        app: postgres
+        component: backup
+    spec:
+      # Clean up completed jobs after 1 hour
+      ttlSecondsAfterFinished: 3600
+      
+      template:
+        metadata:
+          labels:
+            app: postgres
+            component: backup
+        spec:
+          serviceAccountName: postgres-backup-sa
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: postgres-backup
+            image: postgres:13-alpine
+            imagePullPolicy: IfNotPresent
+            
+            command:
+            - /bin/sh
+            - -c
+            - /scripts/backup.sh
+            
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            
+            volumeMounts:
+            - name: backup-volume
+              mountPath: /backups
+            - name: backup-scripts
+              mountPath: /scripts
+              readOnly: true
+            
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          
+          volumes:
+          - name: backup-volume
+            persistentVolumeClaim:
+              claimName: postgres-backup-pvc
+          - name: backup-scripts
+            configMap:
+              name: postgres-backup-script
+              defaultMode: 0755

@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: product-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8800"
+        prometheus.io/path: "/actuator/prometheus"
     spec:
       initContainers:
       - name: wait-for-eureka
@@ -22,7 +26,7 @@ spec:
         command: ['sh', '-c', 'until PGPASSWORD=ecommerce123 psql -h postgres -U ecommerce -d product_db -c "\\q" 2>/dev/null; do echo "Waiting for PostgreSQL..."; sleep 3; done']
       containers:
       - name: product-service
-        image: gcr.io/PROJECT_ID/product-service:latest
+        image: gcr.io/axiomatic-fiber-479102-k7/product-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8500

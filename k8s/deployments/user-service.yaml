@@ -37,6 +37,10 @@ spec:
     metadata:
       labels:
         app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8700"
+        prometheus.io/path: "/actuator/prometheus"
     spec:
       initContainers:
       - name: wait-for-eureka
@@ -58,7 +62,7 @@ spec:
           echo "user_db is ready"
       containers:
       - name: user-service
-        image: gcr.io/PROJECT_ID/user-service:0.1.0
+        image: gcr.io/axiomatic-fiber-479102-k7/user-service:0.1.0
         ports:
         - containerPort: 8700
         envFrom:

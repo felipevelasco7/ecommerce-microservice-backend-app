@@ -1,0 +1,297 @@
+---
+# Role for Microservices - Minimal permissions needed
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: microservice-role
+  namespace: dev
+rules:
+# Permission to read own pod info
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+# Permission to read configmaps (for Spring Cloud Config)
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+# Permission to read secrets (for credentials)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+# Permission to read endpoints (for service discovery)
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+# Permission to read services (for service discovery)
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+---
+# Role for Gateway Services - Additional permissions for routing
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gateway-role
+  namespace: dev
+rules:
+# All microservice permissions
+- apiGroups: [""]
+  resources: ["pods", "configmaps", "secrets", "endpoints", "services"]
+  verbs: ["get", "list", "watch"]
+# Additional permission to watch ingress for routing
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+---
+# Role for Infrastructure Services (Eureka, Config Server)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: infrastructure-role
+  namespace: dev
+rules:
+# Broader permissions for service discovery and config management
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Permission to update service status
+- apiGroups: [""]
+  resources: ["pods/status", "services/status"]
+  verbs: ["get", "update"]
+---
+# ClusterRole for Service Discovery - Needs cluster-wide view
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: service-discovery-cluster-role
+rules:
+# View all services across namespaces
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# View all pods across namespaces
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+# Read nodes for zone/region awareness
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+---
+# Role for Database - Minimal permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: database-role
+  namespace: dev
+rules:
+# Permission to read own pod info
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+# Permission to read secrets for credentials
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+# Permission to read configmaps for configuration
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Permission to manage persistent volumes
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+---
+# RoleBinding for User Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: user-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: user-service-sa
+  namespace: dev
+---
+# RoleBinding for Product Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: product-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: product-service-sa
+  namespace: dev
+---
+# RoleBinding for Order Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: order-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: order-service-sa
+  namespace: dev
+---
+# RoleBinding for Payment Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: payment-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: payment-service-sa
+  namespace: dev
+---
+# RoleBinding for Shipping Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: shipping-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: shipping-service-sa
+  namespace: dev
+---
+# RoleBinding for Favourite Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: favourite-service-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: favourite-service-sa
+  namespace: dev
+---
+# RoleBinding for API Gateway
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gateway-role
+subjects:
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: dev
+---
+# RoleBinding for Proxy Client
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: proxy-client-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gateway-role
+subjects:
+- kind: ServiceAccount
+  name: proxy-client-sa
+  namespace: dev
+---
+# RoleBinding for Service Discovery
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: service-discovery-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: infrastructure-role
+subjects:
+- kind: ServiceAccount
+  name: service-discovery-sa
+  namespace: dev
+---
+# ClusterRoleBinding for Service Discovery (cluster-wide permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: service-discovery-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: service-discovery-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: service-discovery-sa
+  namespace: dev
+---
+# RoleBinding for Cloud Config
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloud-config-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: infrastructure-role
+subjects:
+- kind: ServiceAccount
+  name: cloud-config-sa
+  namespace: dev
+---
+# RoleBinding for Zipkin
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zipkin-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microservice-role
+subjects:
+- kind: ServiceAccount
+  name: zipkin-sa
+  namespace: dev
+---
+# RoleBinding for PostgreSQL
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-rolebinding
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: database-role
+subjects:
+- kind: ServiceAccount
+  name: postgres-sa
+  namespace: dev

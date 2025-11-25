@@ -1,0 +1,68 @@
+---
+# Manual backup job (can be run on-demand)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-manual-backup
+  namespace: dev
+  labels:
+    app: postgres
+    component: backup
+    type: manual
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  
+  template:
+    metadata:
+      labels:
+        app: postgres
+        component: backup
+    spec:
+      serviceAccountName: postgres-backup-sa
+      restartPolicy: Never
+      
+      containers:
+      - name: postgres-backup
+        image: postgres:13-alpine
+        imagePullPolicy: IfNotPresent
+        
+        command:
+        - /bin/sh
+        - -c
+        - /scripts/backup.sh
+        
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        
+        volumeMounts:
+        - name: backup-volume
+          mountPath: /backups
+        - name: backup-scripts
+          mountPath: /scripts
+          readOnly: true
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      
+      volumes:
+      - name: backup-volume
+        persistentVolumeClaim:
+          claimName: postgres-backup-pvc
+      - name: backup-scripts
+        configMap:
+          name: postgres-backup-script
+          defaultMode: 0755

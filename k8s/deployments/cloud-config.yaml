@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: cloud-config
-        image: gcr.io/PROJECT_ID/cloud-config:0.1.0
+        image: gcr.io/axiomatic-fiber-479102-k7/cloud-config:0.1.0
         ports:
         - containerPort: 9296
         env:
