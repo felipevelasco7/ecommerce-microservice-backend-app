@@ -11,6 +11,14 @@ management:
       exposure:
         include: "*"
 
+spring:
+  zipkin:
+    base-url: ${SPRING_ZIPKIN_BASE_URL:http://localhost:9411}
+    enabled: true
+  sleuth:
+    sampler:
+      probability: 1.0
+
 logging:
   level:
     org:

@@ -7,3 +7,4 @@ data:
   SPRING_PROFILES_ACTIVE: "dev"
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery:8761/eureka/"
   SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config:9296"
+  SPRING_ZIPKIN_BASE_URL: "http://zipkin:9411"
