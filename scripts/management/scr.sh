@@ -230,4 +230,5 @@ kubectl get pods -n dev -l app=user-service
 echo ""
 
 echo "📝 Logs (presiona Ctrl+C para salir):"
-kubectl logs -n dev -f -l app=user-service -c us
+kubectl logs -n dev -f -l app=user-service -c user-service
+EOF

@@ -127,4 +127,4 @@ echo "   # ... etc para cada servicio"
 echo ""
 echo "O usa el script de reinicio secuencial"
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -105,4 +105,4 @@ echo ""
 echo "⚠️  IMPORTANTE: Los deployments deben reiniciarse UNO POR UNO"
 echo "    para evitar problemas de recursos del clúster."
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

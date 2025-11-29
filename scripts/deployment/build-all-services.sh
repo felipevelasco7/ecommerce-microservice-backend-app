@@ -34,4 +34,5 @@ done
 
 echo ""
 echo "========================================"
-echo "📊 Resultados: $SUCCESS_COUNT/$TOTAL s
+echo "📊 Resultados: $SUCCESS_COUNT/$TOTAL servicios construidos"
+echo "========================================"

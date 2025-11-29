@@ -684,4 +684,11 @@ kubectl get pods -n dev -w
 **Desarrollado por:** Felipe Velasco  
 **Institución:** Universidad Icesi  
 **Curso:** Plataformas Computacionales 2  
-**Fecha:**
+**Fecha:** Noviembre 2025  
+**Proyecto:** E-commerce Microservices Platform
+
+**📍 Ubicación del proyecto:** `/Users/felipevelasco79/Documents/Icesi/Plataformas2/Proyecto-Final-Google/ecommerce-microservice-backend-app/`
+
+**🔗 GitHub Repository:** https://github.com/SelimHorri/ecommerce-microservice-backend-app
+
+---
