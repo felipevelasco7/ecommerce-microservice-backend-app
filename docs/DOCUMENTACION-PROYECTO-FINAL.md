@@ -1,8 +1,17 @@
-# 📋 DOCUMENTACIÓN COMPLETA - PROYECTO FINAL E-COMMERCE MICROSERVICES
+# 📋 DOCUMENTACIÓN TÉCNICA COMPLETA - E-COMMERCE MICROSERVICES PLATFORM
 
 ## 🎯 RESUMEN EJECUTIVO
 
-Este proyecto implementa una **plataforma completa de e-commerce basada en microservicios** utilizando **Kubernetes en Google Cloud Platform (GKE)**. La solución cumple **100% de los requerimientos académicos** establecidos, implementando arquitectura cloud-native, CI/CD automatizado, observabilidad completa, autoscaling inteligente y seguridad empresarial.
+**NOTA:** Para la guía paso a paso de despliegue, consulta: [`GUIA-DESPLIEGUE-COMPLETO.md`](./GUIA-DESPLIEGUE-COMPLETO.md)
+
+Este documento contiene la **documentación técnica completa** del proyecto final implementado para el curso de Plataformas Computacionales 2 de la Universidad Icesi. La plataforma implementa una **arquitectura de microservicios cloud-native** desplegada en **Google Kubernetes Engine (GKE)** con observabilidad completa, autoscaling inteligente y seguridad empresarial.
+
+### 📊 **Información del Proyecto:**
+- **👨‍💻 Desarrollador:** Felipe Velasco  
+- **🏫 Universidad:** Icesi - Cali, Colombia
+- **📚 Curso:** Plataformas Computacionales 2
+- **📅 Fecha:** Noviembre 2025
+- **🔗 Repositorio:** [ecommerce-microservice-backend-app](https://github.com/felipevelasco7/ecommerce-microservice-backend-app)
 
 ### 📊 **Métricas del Proyecto:**
 - **🏗️ Arquitectura:** 10 microservicios + frontend + servicios de infraestructura
@@ -196,7 +205,7 @@ Funcionalidades implementadas:
 #### **Evidencias requeridas:**
 ```bash
 # Para ver resultados del pipeline de seguridad:
-# 1. Ir a GitHub Actions: https://github.com/SelimHorri/ecommerce-microservice-backend-app/actions
+# 1. Ir a GitHub Actions: https://github.com/felipevelasco7/ecommerce-microservice-backend-app/actions
 # 2. Buscar workflow "Security & Compliance Pipeline" 
 # 3. Hacer click en una ejecución reciente
 # 4. Tomar screenshot de los resultados del scan
@@ -322,7 +331,7 @@ kubectl describe pod sealed-secrets-controller -n sealed-secrets
 #### **Evidencia requerida:**
 ```bash
 # Capturas de los pipelines:
-# 1. GitHub Actions dashboard: https://github.com/SelimHorri/ecommerce-microservice-backend-app/actions
+# 1. GitHub Actions dashboard: https://github.com/felipevelasco7/ecommerce-microservice-backend-app/actions
 # 2. Screenshot de pipelines exitosos por servicio
 # 3. Screenshot del security compliance pipeline
 # 4. Helm releases:
@@ -689,6 +698,6 @@ kubectl get pods -n dev -w
 
 **📍 Ubicación del proyecto:** `/Users/felipevelasco79/Documents/Icesi/Plataformas2/Proyecto-Final-Google/ecommerce-microservice-backend-app/`
 
-**🔗 GitHub Repository:** https://github.com/SelimHorri/ecommerce-microservice-backend-app
+**🔗 GitHub Repository:** https://github.com/felipevelasco7/ecommerce-microservice-backend-app
 
 ---

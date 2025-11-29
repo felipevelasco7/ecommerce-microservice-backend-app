@@ -137,7 +137,7 @@ Plataforma completa de e-commerce implementada con arquitectura de microservicio
 ### 🎯 **Opción 1: Despliegue Automatizado (Recomendado)**
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/SelimHorri/ecommerce-microservice-backend-app.git
+git clone https://github.com/felipevelasco7/ecommerce-microservice-backend-app.git
 cd ecommerce-microservice-backend-app
 
 # 2. Configurar GCP y Kubernetes
@@ -259,7 +259,7 @@ kubectl port-forward -n dev svc/frontend 3000:80
 - **🏫 Universidad:** Icesi - Cali, Colombia  
 - **📚 Curso:** Plataformas Computacionales 2
 - **📧 Email:** [felipe.velasco@correo.icesi.edu.co](mailto:felipe.velasco@correo.icesi.edu.co)
-- **🔗 GitHub:** [SelimHorri/ecommerce-microservice-backend-app](https://github.com/SelimHorri/ecommerce-microservice-backend-app)
+- **🔗 GitHub:** [SelimHorri/ecommerce-microservice-backend-app](https://github.com/felipevelasco7/ecommerce-microservice-backend-app)
 - **📅 Fecha:** Noviembre 2024
 
 

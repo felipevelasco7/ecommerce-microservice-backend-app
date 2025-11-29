@@ -1,21 +1,39 @@
-# 🚀 ACCESO RÁPIDO - URLs del Proyecto
+# 🌐 GUÍA DE ACCESO - URLs y Endpoints del Proyecto
 
-## ⚡ CONFIGURACIÓN INICIAL (Solo una vez)
+**NOTA:** Esta guía contiene URLs específicas de una implementación. Para obtener las URLs de tu despliegue, usa el script: `./get-access-urls.sh` (creado en la guía de despliegue)
+
+## 📋 Cómo Obtener las URLs de Tu Despliegue
 
 ```bash
-# Agregar a /etc/hosts
-sudo nano /etc/hosts
+# 1. Desde el directorio raíz del proyecto
+./get-access-urls.sh
+
+# 2. O manualmente:
+kubectl get svc -n dev -o wide
+kubectl get svc -n monitoring -o wide
+
+# 3. Para obtener IPs específicas:
+API_GATEWAY_IP=$(kubectl get svc api-gateway -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+FRONTEND_IP=$(kubectl get svc frontend -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "API Gateway: http://$API_GATEWAY_IP"
+echo "Frontend: http://$FRONTEND_IP"
 ```
 
-Copiar y pegar estas líneas:
-```
-35.223.30.48    frontend.ecommerce.local
-35.223.30.48    grafana.ecommerce.local
-35.223.30.48    prometheus.ecommerce.local
-35.223.30.48    zipkin.ecommerce.local
-35.223.30.48    eureka.ecommerce.local
-35.223.30.48    alertmanager.ecommerce.local
-35.223.30.48    ecommerce.local
+## ⚡ CONFIGURACIÓN DNS LOCAL (Opcional)
+
+Si quieres usar nombres amigables en lugar de IPs:
+
+```bash
+# Obtener IPs de tu despliegue
+API_GATEWAY_IP=$(kubectl get svc api-gateway -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+FRONTEND_IP=$(kubectl get svc frontend -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Agregar a /etc/hosts (cambiar IPs por las tuyas)
+sudo tee -a /etc/hosts <<EOF
+$API_GATEWAY_IP    api.ecommerce.local
+$FRONTEND_IP       frontend.ecommerce.local
+$API_GATEWAY_IP    ecommerce.local
+EOF
 ```
 
 ---
