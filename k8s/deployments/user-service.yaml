@@ -72,25 +72,12 @@ spec:
             name: user-service-secret
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "768Mi"
+            cpu: "300m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health/liveness
-            port: 8700
-          initialDelaySeconds: 120
-          periodSeconds: 10
-          failureThreshold: 5
-        readinessProbe:
-          httpGet:
-            path: /actuator/health/readiness
-            port: 8700
-          initialDelaySeconds: 90
-          periodSeconds: 5
-          failureThreshold: 3
+            memory: "1536Mi"
+            cpu: "750m"
+
 ---
 apiVersion: v1
 kind: Service

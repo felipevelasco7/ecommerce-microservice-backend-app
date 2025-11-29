@@ -20,14 +20,14 @@ echo ""
 
 # Lista de servicios
 SERVICES=(
-    "user-service"
-    "product-service"
-    "order-service"
-    "payment-service"
-    "shipping-service"
-    "favourite-service"
-    "proxy-client"
-    "api-gateway"
+    "microservices/user-service"
+    "microservices/product-service"
+    "microservices/order-service"
+    "microservices/payment-service"
+    "microservices/shipping-service"
+    "microservices/favourite-service"
+    "microservices/proxy-client"
+    "microservices/api-gateway"
 )
 
 # Limpiar targets locales primero
@@ -127,4 +127,4 @@ echo "   # ... etc para cada servicio"
 echo ""
 echo "O usa el script de reinicio secuencial"
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�

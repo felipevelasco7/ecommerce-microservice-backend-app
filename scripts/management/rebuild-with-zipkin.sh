@@ -21,13 +21,13 @@ echo ""
 
 # Lista de servicios a reconstruir
 SERVICES=(
-    "user-service"
-    "product-service"
-    "order-service"
-    "payment-service"
-    "shipping-service"
-    "favourite-service"
-    "proxy-client"
+    "microservices/user-service"
+    "microservices/product-service"
+    "microservices/order-service"
+    "microservices/payment-service"
+    "microservices/shipping-service"
+    "microservices/favourite-service"
+    "microservices/proxy-client"
     "api-gateway"
 )
 
@@ -105,4 +105,4 @@ echo ""
 echo "⚠️  IMPORTANTE: Los deployments deben reiniciarse UNO POR UNO"
 echo "    para evitar problemas de recursos del clúster."
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

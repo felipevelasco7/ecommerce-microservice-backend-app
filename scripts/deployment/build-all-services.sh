@@ -8,11 +8,11 @@ echo ""
 
 # Lista de servicios a construir
 SERVICES=(
-    "product-service"
-    "order-service"
-    "payment-service"
-    "shipping-service"
-    "favourite-service"
+    "microservices/product-service"
+    "microservices/order-service"
+    "microservices/payment-service"
+    "microservices/shipping-service"
+    "microservices/favourite-service"
 )
 
 # Contador de éxitos
@@ -34,5 +34,4 @@ done
 
 echo ""
 echo "========================================"
-echo "📊 Resultados: $SUCCESS_COUNT/$TOTAL servicios construidos"
-echo "========================================"
+echo "📊 Resultados: $SUCCESS_COUNT/$TOTAL s

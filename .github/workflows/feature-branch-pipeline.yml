@@ -1,0 +1,510 @@
+name: Feature Branch Pipeline
+
+on:
+  push:
+    branches:
+      - 'feature/*'
+      - 'hotfix/*'
+      - 'bugfix/*'
+  pull_request:
+    branches: [ develop, main ]
+    types: [opened, synchronize, reopened]
+
+env:
+  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_ZONE: us-central1-a  
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changes.outputs.services }}
+      has-changes: ${{ steps.changes.outputs.has-changes }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+        
+    - name: Detect Service Changes
+      id: changes
+      run: |
+        echo "Detecting changes in microservices..."
+        
+        # Get changed files
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # Detect which services changed
+        SERVICES=()
+        
+        # Check each service directory
+        for service in api-gateway cloud-config favourite-service order-service payment-service product-service proxy-client service-discovery shipping-service user-service; do
+          if echo "$CHANGED_FILES" | grep -q "^${service}/"; then
+            SERVICES+=("$service")
+            echo "✅ Changes detected in $service"
+          fi
+        done
+        
+        # Check for shared/common changes that affect all services
+        if echo "$CHANGED_FILES" | grep -qE "(pom.xml|compose\.yml|Dockerfile|k8s/|\.github/)"; then
+          echo "⚠️ Shared components changed - will build all services"
+          SERVICES=(api-gateway cloud-config favourite-service order-service payment-service product-service proxy-client service-discovery shipping-service user-service)
+        fi
+        
+        # Convert array to JSON
+        SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -s .)
+        echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+        
+        # Set has-changes flag
+        if [[ ${#SERVICES[@]} -gt 0 ]]; then
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has-changes=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Services to build: $SERVICES_JSON"
+
+  quality-checks:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    strategy:
+      matrix:
+        service: ${{fromJson(needs.detect-changes.outputs.services)}}
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'adopt'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Code Quality - Checkstyle
+      run: |
+        SERVICE="${{ matrix.service }}"
+        echo "🔍 Running Checkstyle for $SERVICE..."
+        
+        cd $SERVICE
+        ./mvnw checkstyle:check -B || {
+          echo "❌ Checkstyle failed for $SERVICE"
+          exit 1
+        }
+        
+    - name: Code Quality - SpotBugs
+      run: |
+        SERVICE="${{ matrix.service }}"
+        echo "🔍 Running SpotBugs for $SERVICE..."
+        
+        cd $SERVICE
+        ./mvnw spotbugs:check -B || {
+          echo "❌ SpotBugs found issues in $SERVICE"
+          exit 1
+        }
+        
+    - name: Security Scan - OWASP Dependency Check
+      run: |
+        SERVICE="${{ matrix.service }}"
+        echo "🛡️ Running OWASP Dependency Check for $SERVICE..."
+        
+        cd $SERVICE
+        ./mvnw org.owasp:dependency-check-maven:check -B || {
+          echo "❌ Security vulnerabilities found in $SERVICE"
+          exit 1
+        }
+        
+    - name: Unit Tests with Coverage
+      run: |
+        SERVICE="${{ matrix.service }}"
+        echo "🧪 Running unit tests with coverage for $SERVICE..."
+        
+        cd $SERVICE
+        ./mvnw test jacoco:report -B
+        
+        # Check coverage threshold (80%)
+        COVERAGE=$(./mvnw jacoco:check -Drules.coveredratio.minimum=0.80 -B | grep -o "covered ratio is [0-9.]*" | grep -o "[0-9.]*" | tail -1)
+        
+        if [[ -n "$COVERAGE" ]]; then
+          echo "📊 Code Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            echo "✅ Coverage meets minimum threshold (80%)"
+          else
+            echo "⚠️ Coverage below minimum threshold: ${COVERAGE}% < 80%"
+          fi
+        fi
+
+    - name: Integration Tests
+      run: |
+        SERVICE="${{ matrix.service }}"
+        echo "🔗 Running integration tests for $SERVICE..."
+        
+        cd $SERVICE
+        ./mvnw verify -Pintegration-tests -B || {
+          echo "❌ Integration tests failed for $SERVICE"
+          exit 1
+        }
+        
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.service }}
+        path: |
+          ${{ matrix.service }}/target/surefire-reports/**
+          ${{ matrix.service }}/target/failsafe-reports/**
+          ${{ matrix.service }}/target/site/jacoco/**
+        retention-days: 7
+
+  build-feature-images:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, quality-checks]
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    strategy:
+      matrix:
+        service: ${{fromJson(needs.detect-changes.outputs.services)}}
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker
+      
+    - name: Build Feature Image
+      run: |
+        SERVICE="${{ matrix.service }}"
+        
+        # Create feature-safe branch name (replace / with -)
+        BRANCH_NAME=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/\//-/g')
+        FEATURE_TAG="feature-${BRANCH_NAME}-${{ github.sha }}"
+        IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:${FEATURE_TAG}"
+        
+        echo "🏗️ Building feature image for $SERVICE..."
+        echo "Image: $IMAGE"
+        
+        cd $SERVICE
+        
+        # Build with Maven first to ensure all dependencies are resolved
+        ./mvnw clean package -DskipTests -B
+        
+        # Build Docker image
+        docker build -t $IMAGE .
+        
+        # Push to registry
+        docker push $IMAGE
+        
+        echo "✅ Feature image built and pushed: $IMAGE"
+        
+        # Save image reference for deployment
+        echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+        echo "FEATURE_TAG=$FEATURE_TAG" >> $GITHUB_ENV
+
+  deploy-feature-env:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-feature-images]
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    environment: feature-development
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK  
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Create Feature Namespace
+      run: |
+        BRANCH_NAME=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/\//-/g')
+        NAMESPACE="feature-${BRANCH_NAME}"
+        
+        echo "🏗️ Creating feature environment: $NAMESPACE"
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace $NAMESPACE || kubectl get namespace $NAMESPACE
+        
+        # Label namespace
+        kubectl label namespace $NAMESPACE type=feature-environment --overwrite
+        kubectl label namespace $NAMESPACE branch=$BRANCH_NAME --overwrite
+        
+        echo "FEATURE_NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
+        
+    - name: Deploy Changed Services to Feature Environment
+      run: |
+        SERVICES='${{ needs.detect-changes.outputs.services }}'
+        BRANCH_NAME=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/\//-/g')
+        FEATURE_TAG="feature-${BRANCH_NAME}-${{ github.sha }}"
+        
+        echo "🚀 Deploying services to feature environment..."
+        echo "Services: $SERVICES"
+        
+        # Create a deployment script
+        cat > deploy-feature.sh << 'EOF'
+        #!/bin/bash
+        
+        SERVICE=$1
+        NAMESPACE=$2
+        IMAGE=$3
+        
+        echo "Deploying $SERVICE to $NAMESPACE..."
+        
+        # Copy base deployment and modify for feature env
+        kubectl get deployment $SERVICE -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $NAMESPACE/g" | \
+          sed "s/name: $SERVICE/name: $SERVICE/g" | \
+          sed "s|image: gcr.io.*|image: $IMAGE|g" | \
+          sed '/resourceVersion:/d' | \
+          sed '/uid:/d' | \
+          sed '/generation:/d' | \
+          sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+        
+        # Copy service
+        kubectl get svc $SERVICE -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $NAMESPACE/g" | \
+          sed '/resourceVersion:/d' | \
+          sed '/uid:/d' | \
+          sed '/clusterIP:/d' | \
+          sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+        
+        # Wait for deployment
+        kubectl rollout status deployment/$SERVICE -n $NAMESPACE --timeout=300s
+        
+        EOF
+        
+        chmod +x deploy-feature.sh
+        
+        # Deploy each changed service
+        for service in $(echo $SERVICES | jq -r '.[]'); do
+          IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${service}:${FEATURE_TAG}"
+          ./deploy-feature.sh $service $FEATURE_NAMESPACE $IMAGE
+        done
+        
+        echo "✅ Feature deployment completed"
+        
+    - name: Deploy Dependencies
+      run: |
+        echo "🔗 Deploying service dependencies to feature environment..."
+        
+        # Deploy service-discovery first
+        kubectl get deployment service-discovery -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $FEATURE_NAMESPACE/g" | \
+          sed '/resourceVersion:/d' | sed '/uid:/d' | sed '/generation:/d' | sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+          
+        kubectl get svc service-discovery -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $FEATURE_NAMESPACE/g" | \
+          sed '/resourceVersion:/d' | sed '/uid:/d' | sed '/clusterIP:/d' | sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+          
+        # Deploy cloud-config
+        kubectl get deployment cloud-config -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $FEATURE_NAMESPACE/g" | \
+          sed '/resourceVersion:/d' | sed '/uid:/d' | sed '/generation:/d' | sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+          
+        kubectl get svc cloud-config -n dev -o yaml | \
+          sed "s/namespace: dev/namespace: $FEATURE_NAMESPACE/g" | \
+          sed '/resourceVersion:/d' | sed '/uid:/d' | sed '/clusterIP:/d' | sed '/creationTimestamp:/d' | \
+          kubectl apply -f -
+        
+        # Wait for core services
+        kubectl rollout status deployment/service-discovery -n $FEATURE_NAMESPACE --timeout=300s
+        kubectl rollout status deployment/cloud-config -n $FEATURE_NAMESPACE --timeout=300s
+        
+    - name: Run Feature Environment Tests
+      run: |
+        echo "🧪 Running tests against feature environment..."
+        
+        # Wait for all services to be ready
+        sleep 60
+        
+        # Get service endpoints
+        SERVICES='${{ needs.detect-changes.outputs.services }}'
+        
+        for service in $(echo $SERVICES | jq -r '.[]'); do
+          echo "Testing $service in feature environment..."
+          
+          # Port forward and test
+          kubectl port-forward svc/$service -n $FEATURE_NAMESPACE 8080:80 &
+          PF_PID=$!
+          sleep 10
+          
+          # Health check
+          for i in {1..5}; do
+            if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "✅ $service health check passed"
+              break
+            else
+              echo "⚠️ $service health check failed, retrying..."
+              sleep 10
+            fi
+          done
+          
+          kill $PF_PID
+        done
+        
+        echo "✅ Feature environment tests completed"
+        
+    - name: Generate Feature Environment Info
+      run: |
+        BRANCH_NAME=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/\//-/g')
+        
+        cat > feature-env-info.md << EOF
+        # Feature Environment Created 🚀
+        
+        **Branch:** \`${{ github.head_ref || github.ref_name }}\`
+        **Namespace:** \`$FEATURE_NAMESPACE\`
+        **Commit:** \`${{ github.sha }}\`
+        **Services Deployed:** ${{ needs.detect-changes.outputs.services }}
+        
+        ## Access Information
+        
+        ### Services Running:
+        \`\`\`bash
+        kubectl get pods -n $FEATURE_NAMESPACE
+        \`\`\`
+        
+        ### Port Forward to Services:
+        \`\`\`bash
+        # API Gateway
+        kubectl port-forward svc/api-gateway -n $FEATURE_NAMESPACE 8080:80
+        
+        # Individual Services  
+        kubectl port-forward svc/user-service -n $FEATURE_NAMESPACE 8081:80
+        kubectl port-forward svc/product-service -n $FEATURE_NAMESPACE 8082:80
+        \`\`\`
+        
+        ### Environment Cleanup:
+        \`\`\`bash
+        kubectl delete namespace $FEATURE_NAMESPACE
+        \`\`\`
+        
+        **Environment will auto-cleanup after 24 hours**
+        EOF
+        
+        cat feature-env-info.md
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const comment = fs.readFileSync('feature-env-info.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  # Cleanup job for old feature environments
+  cleanup-old-features:
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Cleanup Old Feature Environments
+      run: |
+        echo "🧹 Cleaning up old feature environments..."
+        
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+        # Get all feature namespaces older than 24 hours
+        CUTOFF_DATE=$(date -d '24 hours ago' -u +%Y-%m-%dT%H:%M:%SZ)
+        
+        OLD_NAMESPACES=$(kubectl get namespaces -l type=feature-environment -o json | \
+          jq -r --arg cutoff "$CUTOFF_DATE" \
+          '.items[] | select(.metadata.creationTimestamp < $cutoff) | .metadata.name')
+        
+        if [[ -n "$OLD_NAMESPACES" ]]; then
+          echo "Deleting old feature environments:"
+          echo "$OLD_NAMESPACES"
+          
+          for ns in $OLD_NAMESPACES; do
+            echo "Deleting namespace: $ns"
+            kubectl delete namespace $ns --timeout=300s
+          done
+        else
+          echo "No old feature environments to cleanup"
+        fi
+        
+        echo "✅ Cleanup completed"
+
+  notify-results:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, quality-checks, build-feature-images, deploy-feature-env]
+    if: always() && needs.detect-changes.outputs.has-changes == 'true'
+    steps:
+    - name: Notify Results
+      uses: 8398a7/action-slack@v3
+      with:
+        status: custom
+        custom_payload: |
+          {
+            "text": "🌟 Feature Branch Pipeline Results",
+            "attachments": [
+              {
+                "color": "${{ 
+                  needs.quality-checks.result == 'success' && 
+                  needs.build-feature-images.result == 'success' && 
+                  needs.deploy-feature-env.result == 'success' && 'good' || 'danger' 
+                }}",
+                "fields": [
+                  {
+                    "title": "Branch",
+                    "value": "${{ github.head_ref || github.ref_name }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Services",
+                    "value": "${{ needs.detect-changes.outputs.services }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Quality Checks",
+                    "value": "${{ needs.quality-checks.result == 'success' && '✅ Passed' || '❌ Failed' }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Feature Environment",
+                    "value": "${{ needs.deploy-feature-env.result == 'success' && '✅ Deployed' || '❌ Failed' }}",
+                    "short": true
+                  }
+                ]
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

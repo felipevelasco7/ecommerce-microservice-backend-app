@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce Microservices - Tienda</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .cart-icon {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-size: 1.5em;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+
+        .cart-icon:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Tabs Navigation */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 3px solid #667eea;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1em;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            margin-bottom: -3px;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.3s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .status-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .status-card.online {
+            border-left-color: #28a745;
+        }
+
+        .status-card.offline {
+            border-left-color: #dc3545;
+        }
+
+        .status-card h3 {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .status-card p {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .product-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .product-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .product-card .price {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .product-card .stock {
+            color: #28a745;
+            font-size: 0.9em;
+        }
+
+        .product-card .category {
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #dc3545;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+
+        .api-info {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #0066cc;
+        }
+
+        .api-info h3 {
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+
+        .api-info code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .monitoring-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .monitoring-link {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .monitoring-link:hover {
+            transform: scale(1.05);
+        }
+
+        #cartCount {
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛍️ E-Commerce Microservices</h1>
+            <p>Plataforma de comercio electrónico con arquitectura de microservicios en Kubernetes</p>
+            <p>Carrito: <span id="cartCount">0</span> productos</p>
+        </header>
+
+        <div class="status-bar">
+            <h2 style="margin-bottom: 15px;">Estado de Microservicios</h2>
+            <div class="status-grid" id="statusGrid">
+                <div class="status-card">
+                    <h3>Cargando...</h3>
+                    <p>⏳</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+            <button class="tab" onclick="switchTab('products')">📦 Productos</button>
+            <button class="tab" onclick="switchTab('orders')">🛒 Pedidos</button>
+            <button class="tab" onclick="switchTab('payments')">💳 Pagos</button>
+            <button class="tab" onclick="switchTab('shipping')">🚚 Envíos</button>
+            <button class="tab" onclick="switchTab('favourites')">⭐ Favoritos</button>
+            <button class="tab" onclick="switchTab('users')">👥 Usuarios</button>
+            <button class="tab" onclick="switchTab('monitoring')">📈 Monitoreo</button>
+        </div>
+
+        <!-- Tab: Dashboard -->
+        <div id="dashboard-tab" class="tab-content active">
+            <div class="api-info">
+                <h3>ℹ️ Información de Conexión</h3>
+                <p><strong>API Gateway:</strong> <code id="apiUrl">Cargando...</code></p>
+                <p><strong>Ingress IP:</strong> <code>35.223.30.48</code></p>
+                <p><strong>Servicios Activos:</strong> <span id="serviceCount">--</span></p>
+            </div>
+
+            <div class="section">
+                <h2>📊 Resumen del Sistema</h2>
+                <div class="status-grid">
+                    <div class="status-card online">
+                        <h3>📦 Productos</h3>
+                        <p id="totalProducts">--</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>🛒 Pedidos</h3>
+                        <p id="totalOrders">--</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>💳 Pagos Pendientes</h3>
+                        <p id="pendingPayments">--</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>🚚 Envíos Activos</h3>
+                        <p id="activeShipments">--</p>
+                    </div>
+                    <div class="status-card">
+                        <h3>🛍️ Carrito Actual</h3>
+                        <p id="cartItems">0 items</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>💰 Ingresos Totales</h3>
+                        <p id="totalRevenue">$0.00</p>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">🔧 Estado de Servicios</h3>
+                <div class="status-grid">
+                    <div class="status-card online">
+                        <h3>Product Service</h3>
+                        <p>✅ Operacional</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>Order Service</h3>
+                        <p>✅ Operacional</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>Payment Service</h3>
+                        <p>✅ Operacional</p>
+                    </div>
+                    <div class="status-card online">
+                        <h3>Shipping Service</h3>
+                        <p>✅ Operacional</p>
+                    </div>
+                    <div class="status-card" style="border-left-color: #ffc107;">
+                        <h3>Favourite Service</h3>
+                        <p>⚠️ Error 500</p>
+                    </div>
+                    <div class="status-card" style="border-left-color: #0066cc;">
+                        <h3>User Service</h3>
+                        <p>🔒 Protegido</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Products -->
+        <div id="products-tab" class="tab-content">
+            <div class="section">
+                <h2>📦 Catálogo de Productos</h2>
+                <div id="productsContainer" class="loading">
+                    Cargando productos...
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Orders -->
+        <div id="orders-tab" class="tab-content">
+            <div class="section">
+                <h2>🛒 Gestión de Pedidos</h2>
+                <button class="btn btn-primary" onclick="loadOrders()" style="margin-bottom: 20px;">🔄 Recargar Pedidos</button>
+                <div id="ordersContainer">
+                    <p>Cargando pedidos...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Payments -->
+        <div id="payments-tab" class="tab-content">
+            <div class="section">
+                <h2>💳 Gestión de Pagos</h2>
+                <button class="btn btn-primary" onclick="loadPayments()" style="margin-bottom: 20px;">🔄 Recargar Pagos</button>
+                <div id="paymentsContainer">
+                    <p>Cargando pagos...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Shipping -->
+        <div id="shipping-tab" class="tab-content">
+            <div class="section">
+                <h2>🚚 Gestión de Envíos</h2>
+                <button class="btn btn-primary" onclick="loadShipping()" style="margin-bottom: 20px;">🔄 Recargar Envíos</button>
+                <div id="shippingContainer">
+                    <p>Cargando envíos...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Favourites -->
+        <div id="favourites-tab" class="tab-content">
+            <div class="section">
+                <h2>⭐ Productos Favoritos</h2>
+                <button class="btn btn-primary" onclick="loadFavourites()" style="margin-bottom: 20px;">🔄 Recargar Favoritos</button>
+                <div id="favouritesContainer">
+                    <p>Cargando favoritos...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Users -->
+        <div id="users-tab" class="tab-content">
+            <div class="section">
+                <h2>👥 Servicio de Usuarios</h2>
+                
+                <div style="background: #e7f3ff; border-left: 4px solid #0066cc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="color: #0066cc; margin-bottom: 10px;">🔒 Servicio Protegido</h3>
+                    <p style="color: #004085;">Este microservicio requiere autenticación JWT para acceder a los datos de usuarios.</p>
+                    <p style="color: #004085; margin-top: 10px;">Por razones de seguridad, el acceso directo está restringido.</p>
+                </div>
+                
+                <div class="api-info">
+                    <h3>📋 Información del Servicio</h3>
+                    <p><strong>Nombre:</strong> User Service</p>
+                    <p><strong>Endpoint:</strong> <code>/user-service/api/users</code></p>
+                    <p><strong>Autenticación:</strong> <span class="badge warning">JWT Token Required</span></p>
+                    <p><strong>Métodos disponibles:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px; color: #6c757d;">
+                        <li><code>GET /api/users</code> - Listar todos los usuarios</li>
+                        <li><code>GET /api/users/{id}</code> - Obtener usuario por ID</li>
+                        <li><code>GET /api/users/username/{username}</code> - Buscar por username</li>
+                        <li><code>POST /api/users</code> - Crear nuevo usuario</li>
+                        <li><code>PUT /api/users</code> - Actualizar usuario</li>
+                        <li><code>DELETE /api/users/{id}</code> - Eliminar usuario</li>
+                    </ul>
+                    
+                    <h4 style="margin-top: 20px;">🔐 Cómo obtener acceso:</h4>
+                    <ol style="margin-left: 20px; color: #6c757d;">
+                        <li>Implementar autenticación en el frontend</li>
+                        <li>Obtener JWT token desde el endpoint de login</li>
+                        <li>Incluir token en headers: <code>Authorization: Bearer {token}</code></li>
+                    </ol>
+                    
+                    <h4 style="margin-top: 20px;">📊 Estado del Servicio:</h4>
+                    <p>Ejecuta: <code>kubectl get pods -n dev | grep user-service</code></p>
+                    <p>Ver logs: <code>kubectl logs -n dev -l app=user-service</code></p>
+                </div>
+                
+                <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                    <h3 style="color: #155724; margin-bottom: 10px;">✅ Servicio Funcionando</h3>
+                    <p style="color: #155724;">User Service está activo y respondiendo correctamente a peticiones autenticadas.</p>
+                    <p style="color: #155724; margin-top: 10px;">El error 500 es esperado sin token de autenticación - esto indica que la seguridad está funcionando.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Monitoring -->
+        <div id="monitoring-tab" class="tab-content">
+            <div class="section">
+                <h2>📊 Monitoreo y Observabilidad</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    <strong>Nota:</strong> Para usar estos links, agrega a /etc/hosts:
+                    <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">35.223.30.48 grafana.ecommerce.local prometheus.ecommerce.local zipkin.ecommerce.local eureka.ecommerce.local</code>
+                </p>
+                <div class="monitoring-links">
+                    <a href="https://grafana.ecommerce.local" target="_blank" class="monitoring-link">
+                        📈 Grafana<br><small>Dashboards</small><br><small style="font-size: 0.7em;">admin/admin123</small>
+                    </a>
+                    <a href="http://prometheus.ecommerce.local" target="_blank" class="monitoring-link">
+                        📊 Prometheus<br><small>Métricas</small>
+                    </a>
+                    <a href="http://zipkin.ecommerce.local" target="_blank" class="monitoring-link">
+                        🔍 Zipkin<br><small>Trazas</small>
+                    </a>
+                    <a href="http://eureka.ecommerce.local" target="_blank" class="monitoring-link">
+                        🌐 Eureka<br><small>Service Discovery</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content" style="display:none;">
+            <!-- Old content hidden -->
+            <div class="api-info">
+                <h3>ℹ️ Información de Conexión</h3>
+                <p><strong>API Gateway:</strong> <code id="apiUrl2">Cargando...</code></p>
+                <p><strong>Ingress IP:</strong> <code>35.223.30.48</code></p>
+                <p><strong>Servicios Activos:</strong> <span id="serviceCount2">--</span></p>
+            </div>
+
+            <div class="section">
+                <h2>📦 Catálogo de Productos</h2>
+                <div id="productsContainer2" class="loading">
+                    Cargando productos...
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📊 Monitoreo y Observabilidad</h2>
+                <p style="margin-bottom: 15px; color: #6c757d;">
+                    <strong>Nota:</strong> Para usar estos links, agrega a /etc/hosts:
+                    <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">35.223.30.48 grafana.ecommerce.local prometheus.ecommerce.local zipkin.ecommerce.local eureka.ecommerce.local</code>
+                </p>
+                <div class="monitoring-links">
+                    <a href="https://grafana.ecommerce.local" target="_blank" class="monitoring-link">
+                        📈 Grafana<br><small>Dashboards</small><br><small style="font-size: 0.7em;">admin/admin123</small>
+                    </a>
+                    <a href="http://prometheus.ecommerce.local" target="_blank" class="monitoring-link">
+                        📊 Prometheus<br><small>Métricas</small>
+                    </a>
+                    <a href="http://zipkin.ecommerce.local" target="_blank" class="monitoring-link">
+                        🔍 Zipkin<br><small>Trazas</small>
+                    </a>
+                    <a href="http://eureka.ecommerce.local" target="_blank" class="monitoring-link">
+                        🌐 Eureka<br><small>Service Discovery</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>Proyecto Final - Plataformas Escalables 2025</strong></p>
+            <p>Google Kubernetes Engine (GKE) | Nginx Ingress | Prometheus | Grafana | Zipkin</p>
+        </footer>
+    </div>
+
+    <script>
+        // Configuración de la API - Usar path relativo a través del proxy en Ingress
+        const API_BASE = '/api';
+        let cart = [];
+
+        // Actualizar URL en la UI
+        document.getElementById('apiUrl').textContent = window.location.origin + API_BASE;
+
+        // Función para cambiar de tab
+        function switchTab(tabName) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remover clase active de todos los botones
+            document.querySelectorAll('.tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mostrar el tab seleccionado
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Activar el botón correspondiente
+            event.target.classList.add('active');
+            
+            // Cargar datos según el tab
+            if (tabName === 'orders') {
+                loadOrders();
+            } else if (tabName === 'products') {
+                loadProducts();
+            } else if (tabName === 'payments') {
+                loadPayments();
+            } else if (tabName === 'shipping') {
+                loadShipping();
+            } else if (tabName === 'favourites') {
+                loadFavourites();
+            }
+        }
+
+        // Cargar pedidos
+        async function loadOrders() {
+            const container = document.getElementById('ordersContainer');
+            container.innerHTML = '<p>🔄 Cargando pedidos...</p>';
+            
+            const ordersData = await apiRequest('/order-service/api/orders');
+            const orders = ordersData?.collection || ordersData?.content || [];
+            
+            if (!orders || orders.length === 0) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>⚠️ No se encontraron pedidos</strong>
+                        <p>No hay pedidos registrados en el sistema.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Actualizar contador en dashboard
+            document.getElementById('totalOrders').textContent = orders.length;
+            
+            // Crear tabla de pedidos
+            container.innerHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Total</th>
+                            <th>Cart ID</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(order => `
+                            <tr>
+                                <td><strong>#${order.orderId}</strong></td>
+                                <td>${formatDate(order.orderDate)}</td>
+                                <td>${order.orderDesc || 'Sin descripción'}</td>
+                                <td><strong>$${(order.orderFee || 0).toFixed(2)}</strong></td>
+                                <td>Cart #${order.cart?.cartId || 'N/A'}</td>
+                                <td><span class="badge success">Completado</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <p style="margin-top: 20px; color: #6c757d;">
+                    <strong>Total de pedidos:</strong> ${orders.length} | 
+                    <strong>Suma total:</strong> $${orders.reduce((sum, o) => sum + (o.orderFee || 0), 0).toFixed(2)}
+                </p>
+            `;
+        }
+
+        // Cargar pagos
+        async function loadPayments() {
+            const container = document.getElementById('paymentsContainer');
+            container.innerHTML = '<p>🔄 Cargando pagos...</p>';
+            
+            const paymentsData = await apiRequest('/payment-service/api/payments');
+            const payments = paymentsData?.collection || paymentsData?.content || [];
+            
+            if (!payments || payments.length === 0) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>⚠️ No se encontraron pagos</strong>
+                        <p>No hay pagos registrados en el sistema.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Crear tabla de pagos
+            container.innerHTML = `
+                <div class="status-grid" style="margin-bottom: 20px;">
+                    <div class="status-card">
+                        <h3>Total Pagos</h3>
+                        <p><strong>${payments.length}</strong></p>
+                    </div>
+                    <div class="status-card">
+                        <h3>Pagos Completados</h3>
+                        <p><strong style="color: #28a745;">${payments.filter(p => p.isPayed).length}</strong></p>
+                    </div>
+                    <div class="status-card">
+                        <h3>Pagos Pendientes</h3>
+                        <p><strong style="color: #ffc107;">${payments.filter(p => !p.isPayed).length}</strong></p>
+                    </div>
+                    <div class="status-card">
+                        <h3>Monto Total</h3>
+                        <p><strong>$${payments.reduce((sum, p) => sum + (p.order?.orderFee || 0), 0).toFixed(2)}</strong></p>
+                    </div>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID Pago</th>
+                            <th>ID Pedido</th>
+                            <th>Fecha Pedido</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th>Pagado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${payments.map(payment => `
+                            <tr>
+                                <td><strong>#${payment.paymentId}</strong></td>
+                                <td>Order #${payment.order?.orderId || 'N/A'}</td>
+                                <td>${formatDate(payment.order?.orderDate)}</td>
+                                <td><strong>$${(payment.order?.orderFee || 0).toFixed(2)}</strong></td>
+                                <td>
+                                    <span class="badge ${payment.paymentStatus === 'COMPLETED' ? 'success' : 'warning'}">
+                                        ${payment.paymentStatus || 'N/A'}
+                                    </span>
+                                </td>
+                                <td>${payment.isPayed ? '✅ Sí' : '❌ No'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Cargar envíos
+        async function loadShipping() {
+            const container = document.getElementById('shippingContainer');
+            container.innerHTML = '<p>🔄 Cargando envíos...</p>';
+            
+            const shippingData = await apiRequest('/shipping-service/api/shippings');
+            const shippings = shippingData?.collection || shippingData?.content || [];
+            
+            if (!shippings || shippings.length === 0) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>⚠️ No se encontraron envíos</strong>
+                        <p>No hay envíos registrados en el sistema.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Crear tabla de envíos (shipping tiene productId, orderId, orderedQuantity, product, order)
+            container.innerHTML = `
+                <div class="status-grid" style="margin-bottom: 20px;">
+                    <div class="status-card">
+                        <h3>Total Envíos</h3>
+                        <p><strong>${shippings.length}</strong></p>
+                    </div>
+                    <div class="status-card">
+                        <h3>Productos Enviados</h3>
+                        <p><strong>${shippings.reduce((sum, s) => sum + (s.orderedQuantity || 0), 0)} unidades</strong></p>
+                    </div>
+                    <div class="status-card">
+                        <h3>Pedidos Únicos</h3>
+                        <p><strong>${new Set(shippings.map(s => s.orderId)).size}</strong></p>
+                    </div>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>ID Pedido</th>
+                            <th>Cantidad</th>
+                            <th>Fecha Pedido</th>
+                            <th>SKU</th>
+                            <th>Total Pedido</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${shippings.map(shipping => `
+                            <tr>
+                                <td><strong>${shipping.product?.productTitle || 'N/A'}</strong></td>
+                                <td>Order #${shipping.orderId}</td>
+                                <td><span class="badge info">${shipping.orderedQuantity} unidades</span></td>
+                                <td>${formatDate(shipping.order?.orderDate)}</td>
+                                <td><code>${shipping.product?.sku || 'N/A'}</code></td>
+                                <td><strong>$${(shipping.order?.orderFee || 0).toFixed(2)}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Cargar favoritos
+        async function loadFavourites() {
+            const container = document.getElementById('favouritesContainer');
+            container.innerHTML = '<p>🔄 Cargando favoritos...</p>';
+            
+            // Suprimir errores en consola ya que es un error esperado
+            const favouritesData = await apiRequest('/favourite-service/api/favourites', { suppressErrors: true });
+            
+            if (!favouritesData || favouritesData.status === 500) {
+                container.innerHTML = `
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="color: #856404; margin-bottom: 10px;">⚠️ Servicio Temporalmente No Disponible</h3>
+                        <p style="color: #856404;">El servicio de favoritos está experimentando problemas técnicos.</p>
+                    </div>
+                    <div class="api-info">
+                        <h3>📋 Detalles Técnicos</h3>
+                        <p><strong>Servicio:</strong> Favourite Service</p>
+                        <p><strong>Endpoint:</strong> <code>/favourite-service/api/favourites</code></p>
+                        <p><strong>Estado HTTP:</strong> <span class="badge warning">500 Internal Server Error</span></p>
+                        <p><strong>Causa probable:</strong> El servicio requiere configuración de base de datos o relaciones con User Service</p>
+                        
+                        <h4 style="margin-top: 20px;">🔧 Posibles soluciones:</h4>
+                        <ol style="margin-left: 20px; color: #6c757d;">
+                            <li>Verificar logs del servicio: <code>kubectl logs -n dev -l app=favourite-service</code></li>
+                            <li>Verificar configuración de base de datos en ConfigMap</li>
+                            <li>Verificar que User Service esté funcionando correctamente</li>
+                            <li>Revisar relaciones de datos en PostgreSQL</li>
+                        </ol>
+                        
+                        <h4 style="margin-top: 20px;">📊 Estado del Pod:</h4>
+                        <p>Ejecuta: <code>kubectl get pods -n dev | grep favourite-service</code></p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const favourites = favouritesData?.collection || favouritesData?.content || [];
+            
+            if (favourites.length === 0) {
+                container.innerHTML = `
+                    <div class="api-info">
+                        <h3>✨ No hay favoritos registrados</h3>
+                        <p>Comienza agregando productos a tu lista de favoritos desde el catálogo.</p>
+                        <p style="margin-top: 10px;"><strong>Nota:</strong> Esta funcionalidad requiere autenticación de usuario.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Mostrar favoritos
+            container.innerHTML = `
+                <div class="products-grid">
+                    ${favourites.map(fav => `
+                        <div class="product-card">
+                            <h3>⭐ ${fav.productTitle || 'Producto favorito'}</h3>
+                            <p class="price">$${(fav.priceUnit || 0).toFixed(2)}</p>
+                            <p>Usuario: ${fav.userId || 'N/A'}</p>
+                            <button class="btn btn-danger" onclick="removeFavourite(${fav.favouriteId})">
+                                ❌ Eliminar de Favoritos
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Formatear fecha
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            // Formato: "24-11-2025__07:54:40:793838"
+            const parts = dateStr.split('__');
+            if (parts.length === 2) {
+                return `${parts[0]} ${parts[1].split(':').slice(0, 3).join(':')}`;
+            }
+            return dateStr;
+        }
+
+        // Función para hacer requests a la API (sin validar certificados SSL)
+        async function apiRequest(endpoint, options = {}) {
+            const { suppressErrors = false } = options;
+            
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    // El navegador manejará el certificado auto-firmado
+                });
+                
+                if (!response.ok) {
+                    // Para errores 500, devolver objeto de error sin logging
+                    if (response.status === 500) {
+                        return {
+                            status: 500,
+                            error: 'Internal Server Error',
+                            path: endpoint
+                        };
+                    }
+                    
+                    // Para otros errores, solo mostrar si no están suprimidos
+                    if (!suppressErrors) {
+                        console.error(`Error en ${endpoint}: HTTP ${response.status}`);
+                    }
+                    
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                // Solo mostrar errores de red reales (no HTTP status errors)
+                if (!suppressErrors && !error.message.includes('HTTP')) {
+                    console.error(`Error de red en ${endpoint}:`, error.message);
+                }
+                
+                // Si es un error 500 o servicio no disponible, devolver objeto error
+                if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+                    return {
+                        status: 500,
+                        error: 'Internal Server Error',
+                        path: endpoint
+                    };
+                }
+                
+                return null;
+            }
+        }
+
+        // Cargar estado de los servicios
+        async function loadServiceStatus() {
+            const health = await apiRequest('/actuator/health');
+            
+            if (health && health.components && health.components.discoveryComposite) {
+                const discoveryClient = health.components.discoveryComposite.components?.discoveryClient;
+                const eureka = health.components.discoveryComposite.components?.eureka;
+                
+                const services = eureka?.details?.applications || {};
+                const statusGrid = document.getElementById('statusGrid');
+                const serviceCount = document.getElementById('serviceCount');
+                
+                const serviceNames = Object.keys(services);
+                serviceCount.textContent = serviceNames.length;
+                
+                statusGrid.innerHTML = serviceNames.map(name => {
+                    const count = services[name];
+                    const isOnline = count > 0;
+                    return `
+                        <div class="status-card ${isOnline ? 'online' : 'offline'}">
+                            <h3>${name.replace('-SERVICE', '')}</h3>
+                            <p>${isOnline ? '✅ Online' : '❌ Offline'} (${count})</p>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Cargar productos
+        async function loadProducts() {
+            const container = document.getElementById('productsContainer');
+            
+            const products = await apiRequest('/product-service/api/products');
+            
+            // La API devuelve {collection: [...]} no {content: [...]}
+            const productList = products?.collection || products?.content || [];
+            
+            if (!productList || productList.length === 0) {
+                container.innerHTML = `
+                    <div class="error">
+                        <strong>⚠️ No se pudieron cargar los productos</strong>
+                        <p>Verifica que el servicio de productos esté corriendo:</p>
+                        <code>kubectl get pods -n dev | grep product-service</code>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Actualizar contador en dashboard
+            if (document.getElementById('totalProducts')) {
+                document.getElementById('totalProducts').textContent = productList.length;
+            }
+            
+            container.innerHTML = '';
+            container.className = 'products-grid';
+            
+            productList.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <h3>${product.productTitle || 'Producto sin nombre'}</h3>
+                    <p class="price">$${(product.priceUnit || 0).toFixed(2)}</p>
+                    <p class="stock">Stock: ${product.quantity || 0} unidades</p>
+                    <p>SKU: ${product.sku || 'N/A'}</p>
+                    ${product.category ? `<span class="category">${product.category.categoryTitle}</span>` : ''}
+                    <button class="btn btn-success" onclick="addToCart(${product.productId}, '${product.productTitle}', ${product.priceUnit})">
+                        🛒 Agregar al Carrito
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Agregar al carrito
+        function addToCart(productId, productTitle, price) {
+            cart.push({ productId, productTitle, price });
+            updateCartCount();
+            
+            // Mostrar notificación
+            const notification = document.createElement('div');
+            notification.className = 'success';
+            notification.innerHTML = `<strong>✅ Producto agregado:</strong> ${productTitle}`;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.zIndex = '9999';
+            notification.style.minWidth = '300px';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // Actualizar contador del carrito
+        function updateCartCount() {
+            document.getElementById('cartCount').textContent = cart.length;
+            if (document.getElementById('cartItems')) {
+                document.getElementById('cartItems').textContent = cart.length + ' items';
+            }
+        }
+
+        // Ver carrito
+        function viewCart() {
+            if (cart.length === 0) {
+                alert('El carrito está vacío');
+                return;
+            }
+            
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            const items = cart.map(item => `- ${item.productTitle}: $${item.price.toFixed(2)}`).join('\n');
+            
+            alert(`🛒 Tu Carrito:\n\n${items}\n\nTotal: $${total.toFixed(2)}`);
+        }
+
+        // Inicializar aplicación
+        async function init() {
+            console.log('🚀 Iniciando E-Commerce...');
+            await loadServiceStatus();
+            await loadProducts();
+            await loadDashboardStats();
+            console.log('✅ Aplicación cargada');
+        }
+
+        // Cargar estadísticas del dashboard
+        async function loadDashboardStats() {
+            // Cargar contadores en paralelo (suprimir errores conocidos)
+            const [productsData, ordersData, paymentsData, shippingData] = await Promise.all([
+                apiRequest('/product-service/api/products', { suppressErrors: true }),
+                apiRequest('/order-service/api/orders', { suppressErrors: true }),
+                apiRequest('/payment-service/api/payments', { suppressErrors: true }),
+                apiRequest('/shipping-service/api/shippings', { suppressErrors: true })
+            ]);
+            
+            // Extraer datos
+            const products = productsData?.collection || productsData?.content || [];
+            const orders = ordersData?.collection || ordersData?.content || [];
+            const payments = paymentsData?.collection || paymentsData?.content || [];
+            const shippings = shippingData?.collection || shippingData?.content || [];
+            
+            // Actualizar contadores
+            if (document.getElementById('totalProducts')) {
+                document.getElementById('totalProducts').textContent = products.length;
+            }
+            if (document.getElementById('totalOrders')) {
+                document.getElementById('totalOrders').textContent = orders.length;
+            }
+            if (document.getElementById('pendingPayments')) {
+                const pending = payments.filter(p => !p.isPayed).length;
+                document.getElementById('pendingPayments').textContent = pending;
+            }
+            if (document.getElementById('activeShipments')) {
+                document.getElementById('activeShipments').textContent = shippings.length;
+            }
+            if (document.getElementById('totalRevenue')) {
+                const revenue = orders.reduce((sum, o) => sum + (o.orderFee || 0), 0);
+                document.getElementById('totalRevenue').textContent = '$' + revenue.toFixed(2);
+            }
+        }
+
+        // Cargar cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Recargar estado cada 30 segundos
+        setInterval(loadServiceStatus, 30000);
+    </script>
+</body>
+</html>

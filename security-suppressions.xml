@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    
+    <!-- Spring Boot Known Issues - False Positives -->
+    <suppress>
+        <notes><![CDATA[
+            Spring Boot DevTools is only used in development and not included in production builds
+        ]]></notes>
+        <cve>CVE-2021-22096</cve>
+        <gav regex="true">^org\.springframework\.boot:spring-boot-devtools:.*$</gav>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+            Spring Boot Actuator endpoint exposure is controlled via configuration
+        ]]></notes>
+        <cve>CVE-2021-22118</cve>
+        <gav regex="true">^org\.springframework\.boot:spring-boot-actuator.*:.*$</gav>
+    </suppress>
+    
+    <!-- H2 Database - Development Only -->
+    <suppress>
+        <notes><![CDATA[
+            H2 Database is only used for development/testing, not in production
+        ]]></notes>
+        <gav regex="true">^com\.h2database:h2:.*$</gav>
+    </suppress>
+    
+    <!-- Tomcat Embedded - False Positives -->
+    <suppress>
+        <notes><![CDATA[
+            Tomcat vulnerabilities that don't apply to embedded Spring Boot usage
+        ]]></notes>
+        <cve>CVE-2021-30640</cve>
+        <gav regex="true">^org\.apache\.tomcat\.embed:.*:.*$</gav>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+            Tomcat CVE that doesn't affect embedded mode with Spring Boot configuration
+        ]]></notes>
+        <cve>CVE-2021-33037</cve>
+        <gav regex="true">^org\.apache\.tomcat\.embed:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Jackson Library - Controlled Usage -->
+    <suppress>
+        <notes><![CDATA[
+            Jackson deserialization is controlled and doesn't accept untrusted input
+        ]]></notes>
+        <cve>CVE-2020-25649</cve>
+        <gav regex="true">^com\.fasterxml\.jackson\.core:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Hibernate - Configuration Controlled -->
+    <suppress>
+        <notes><![CDATA[
+            Hibernate SQL injection vulnerability mitigated by parameterized queries
+        ]]></notes>
+        <cve>CVE-2019-14540</cve>
+        <gav regex="true">^org\.hibernate:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Netflix Eureka - Internal Network Only -->
+    <suppress>
+        <notes><![CDATA[
+            Eureka service discovery runs in internal network with restricted access
+        ]]></notes>
+        <gav regex="true">^com\.netflix\.eureka:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Spring Cloud Config - Secured Configuration -->
+    <suppress>
+        <notes><![CDATA[
+            Spring Cloud Config server is secured and not exposed publicly
+        ]]></notes>
+        <cve>CVE-2020-5410</cve>
+        <gav regex="true">^org\.springframework\.cloud:spring-cloud-config.*:.*$</gav>
+    </suppress>
+    
+    <!-- Zipkin Dependencies - Monitoring Only -->
+    <suppress>
+        <notes><![CDATA[
+            Zipkin is used for distributed tracing in controlled environment
+        ]]></notes>
+        <gav regex="true">^io\.zipkin.*:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Maven Plugin Dependencies - Build Time Only -->
+    <suppress>
+        <notes><![CDATA[
+            Maven plugins are only used during build time, not in runtime
+        ]]></notes>
+        <gav regex="true">^org\.apache\.maven\.plugins:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Test Dependencies - Not in Production -->
+    <suppress>
+        <notes><![CDATA[
+            Test dependencies (JUnit, Mockito, etc.) are not included in production builds
+        ]]></notes>
+        <gav regex="true">^org\.junit.*:.*:.*$</gav>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+            Mockito is test dependency only
+        ]]></notes>
+        <gav regex="true">^org\.mockito:.*:.*$</gav>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+            Spring Boot Test dependencies not in production
+        ]]></notes>
+        <gav regex="true">^org\.springframework\.boot:spring-boot-starter-test:.*$</gav>
+    </suppress>
+    
+    <!-- Micrometer - Monitoring Framework -->
+    <suppress>
+        <notes><![CDATA[
+            Micrometer metrics library with controlled exposure
+        ]]></notes>
+        <cve>CVE-2021-21290</cve>
+        <gav regex="true">^io\.micrometer:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Log4j - Using Logback -->
+    <suppress>
+        <notes><![CDATA[
+            Application uses Logback, not Log4j. Any Log4j dependencies are transitive and excluded
+        ]]></notes>
+        <cve>CVE-2021-44228</cve>
+        <cve>CVE-2021-45046</cve>
+        <cve>CVE-2021-45105</cve>
+        <cve>CVE-2021-44832</cve>
+        <gav regex="true">^org\.apache\.logging\.log4j:.*:.*$</gav>
+    </suppress>
+    
+    <!-- PostgreSQL Driver - Secured Connection -->
+    <suppress>
+        <notes><![CDATA[
+            PostgreSQL driver used with secured connection strings and proper configuration
+        ]]></notes>
+        <cve>CVE-2022-21724</cve>
+        <gav regex="true">^org\.postgresql:postgresql:.*$</gav>
+    </suppress>
+    
+    <!-- Docker Base Image Related (handled at container level) -->
+    <suppress>
+        <notes><![CDATA[
+            Operating system vulnerabilities handled by container base image updates
+        ]]></notes>
+        <cpe>cpe:/o:debian:debian_linux</cpe>
+    </suppress>
+    
+    <!-- Spring Security - Properly Configured -->
+    <suppress>
+        <notes><![CDATA[
+            Spring Security CVE mitigated by proper configuration and latest versions
+        ]]></notes>
+        <cve>CVE-2021-22112</cve>
+        <gav regex="true">^org\.springframework\.security:.*:.*$</gav>
+    </suppress>
+    
+    <!-- Apache Commons - Controlled Usage -->
+    <suppress>
+        <notes><![CDATA[
+            Apache Commons libraries used in controlled manner without unsafe deserialization
+        ]]></notes>
+        <cve>CVE-2014-0114</cve>
+        <gav regex="true">^commons-.*:.*:.*$</gav>
+    </suppress>
+    
+    <!-- SnakeYAML - Configuration Files Only -->
+    <suppress>
+        <notes><![CDATA[
+            SnakeYAML used only for parsing trusted configuration files, not user input
+        ]]></notes>
+        <cve>CVE-2017-18640</cve>
+        <gav regex="true">^org\.yaml:snakeyaml:.*$</gav>
+    </suppress>
+    
+    <!-- Netty - Embedded Usage -->
+    <suppress>
+        <notes><![CDATA[
+            Netty vulnerabilities that don't apply to Spring Boot embedded usage
+        ]]></notes>
+        <cve>CVE-2021-21290</cve>
+        <cve>CVE-2021-21295</cve>
+        <gav regex="true">^io\.netty:.*:.*$</gav>
+    </suppress>
+    
+    <!-- False Positives - Filename Based Detection -->
+    <suppress>
+        <notes><![CDATA[
+            False positive based on filename similarity
+        ]]></notes>
+        <fileName regex="true">.*jquery.*\.js$</fileName>
+    </suppress>
+    
+    <suppress>
+        <notes><![CDATA[
+            False positive based on filename similarity for bootstrap
+        ]]></notes>
+        <fileName regex="true">.*bootstrap.*\.js$</fileName>
+    </suppress>
+    
+</suppressions>

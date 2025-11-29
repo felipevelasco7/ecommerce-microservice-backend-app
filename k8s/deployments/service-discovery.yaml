@@ -31,11 +31,11 @@ spec:
           value: "false"
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "768Mi"
+            cpu: "300m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "1536Mi"
+            cpu: "750m"
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness

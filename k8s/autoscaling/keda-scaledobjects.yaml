@@ -1,0 +1,134 @@
+# ScaledObject para API Gateway basado en métricas de Prometheus
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: api-gateway-scaler
+  namespace: dev
+spec:
+  scaleTargetRef:
+    name: api-gateway
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: http_requests_per_second
+      threshold: '100'
+      query: sum(rate(http_server_requests_seconds_count{job="api-gateway"}[2m]))
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: cpu_usage_percentage
+      threshold: '70'
+      query: avg(rate(process_cpu_seconds_total{job="api-gateway"}[2m])) * 100
+---
+# ScaledObject para User Service basado en conexiones de base de datos
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: user-service-scaler
+  namespace: dev
+spec:
+  scaleTargetRef:
+    name: user-service
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  pollingInterval: 60
+  cooldownPeriod: 300
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: database_connections
+      threshold: '15'
+      query: sum(hikaricp_connections_active{job="user-service"})
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: jvm_memory_usage
+      threshold: '80'
+      query: (sum(jvm_memory_used_bytes{job="user-service"}) / sum(jvm_memory_max_bytes{job="user-service"})) * 100
+---
+# ScaledObject para Product Service basado en carga de trabajo
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: product-service-scaler
+  namespace: dev
+spec:
+  scaleTargetRef:
+    name: product-service
+  minReplicaCount: 2
+  maxReplicaCount: 12
+  pollingInterval: 30
+  cooldownPeriod: 180
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: product_search_requests
+      threshold: '50'
+      query: sum(rate(http_server_requests_seconds_count{job="product-service",uri="/products/search"}[1m]))
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: response_time_p99
+      threshold: '2'
+      query: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="product-service"}[2m])) by (le))
+---
+# ScaledObject para Order Service basado en cola de pedidos
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: order-service-scaler
+  namespace: dev
+spec:
+  scaleTargetRef:
+    name: order-service
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  pollingInterval: 45
+  cooldownPeriod: 240
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: pending_orders
+      threshold: '10'
+      query: sum(order_queue_size{job="order-service"})
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: order_processing_time
+      threshold: '30'
+      query: avg(order_processing_duration_seconds{job="order-service"})
+---
+# ScaledObject para Payment Service basado en transacciones
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: payment-service-scaler
+  namespace: dev
+spec:
+  scaleTargetRef:
+    name: payment-service
+  minReplicaCount: 2
+  maxReplicaCount: 15
+  pollingInterval: 20
+  cooldownPeriod: 300
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: payment_transactions_per_minute
+      threshold: '25'
+      query: sum(rate(payment_transactions_total{job="payment-service"}[1m]) * 60)
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: payment_error_rate
+      threshold: '5'
+      query: (sum(rate(payment_errors_total{job="payment-service"}[2m])) / sum(rate(payment_transactions_total{job="payment-service"}[2m]))) * 100

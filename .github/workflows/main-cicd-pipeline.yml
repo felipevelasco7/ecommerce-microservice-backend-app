@@ -1,0 +1,332 @@
+name: Master CI/CD Pipeline - Full Ecommerce Microservices
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+env:
+  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+  
+jobs:
+  # Detectar qué servicios cambiaron
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.changes.outputs.api-gateway }}
+      user-service: ${{ steps.changes.outputs.user-service }}
+      product-service: ${{ steps.changes.outputs.product-service }}
+      payment-service: ${{ steps.changes.outputs.payment-service }}
+      order-service: ${{ steps.changes.outputs.order-service }}
+      shipping-service: ${{ steps.changes.outputs.shipping-service }}
+      favourite-service: ${{ steps.changes.outputs.favourite-service }}
+      cloud-config: ${{ steps.changes.outputs.cloud-config }}
+      service-discovery: ${{ steps.changes.outputs.service-discovery }}
+      proxy-client: ${{ steps.changes.outputs.proxy-client }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          api-gateway:
+            - 'api-gateway/**'
+            - 'pom.xml'
+          user-service:
+            - 'user-service/**'
+            - 'pom.xml'
+          product-service:
+            - 'product-service/**'
+            - 'pom.xml'
+          payment-service:
+            - 'payment-service/**'
+            - 'pom.xml'
+          order-service:
+            - 'order-service/**'
+            - 'pom.xml'
+          shipping-service:
+            - 'shipping-service/**'
+            - 'pom.xml'
+          favourite-service:
+            - 'favourite-service/**'
+            - 'pom.xml'
+          cloud-config:
+            - 'cloud-config/**'
+            - 'pom.xml'
+          service-discovery:
+            - 'service-discovery/**'
+            - 'pom.xml'
+          proxy-client:
+            - 'proxy-client/**'
+            - 'pom.xml'
+
+  # Build y Test de todos los servicios
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+        
+    - name: Run Tests
+      run: |
+        mvn clean test -B
+        
+    - name: Build All Services
+      run: |
+        mvn clean package -DskipTests -B
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: jar-artifacts
+        path: |
+          */target/*.jar
+          !*/target/*-sources.jar
+          !*/target/*-javadoc.jar
+        retention-days: 1
+
+  # Build y Push Docker Images (solo servicios que cambiaron)
+  build-images:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-and-test]
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, product-service, payment-service, order-service, shipping-service, favourite-service, cloud-config, service-discovery, proxy-client]
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: jar-artifacts
+        
+    - name: Check if service changed
+      id: check
+      run: |
+        SERVICE="${{ matrix.service }}"
+        if [[ "${{ needs.detect-changes.outputs[matrix.service] }}" == "true" ]]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Set up Cloud SDK
+      if: steps.check.outputs.changed == 'true'
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Configure Docker to use gcloud as credential helper
+      if: steps.check.outputs.changed == 'true'
+      run: gcloud auth configure-docker
+      
+    - name: Build and Push Docker Image
+      if: steps.check.outputs.changed == 'true'
+      run: |
+        SERVICE="${{ matrix.service }}"
+        IMAGE_TAG="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:${GITHUB_SHA::8}"
+        LATEST_TAG="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:latest"
+        
+        echo "Building $SERVICE..."
+        docker build -f ${SERVICE}/Dockerfile -t ${IMAGE_TAG} -t ${LATEST_TAG} .
+        
+        echo "Pushing images..."
+        docker push ${IMAGE_TAG}
+        docker push ${LATEST_TAG}
+        
+        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
+  # Deploy a Kubernetes 
+  deploy-to-k8s:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-images]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    environment: production
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Deploy changed services
+      run: |
+        SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
+        
+        for SERVICE in "${SERVICES[@]}"; do
+          SERVICE_CHANGED=$(echo '${{ toJSON(needs.detect-changes.outputs) }}' | jq -r --arg service "$SERVICE" '.[$service]')
+          
+          if [[ "$SERVICE_CHANGED" == "true" ]]; then
+            echo "Deploying $SERVICE..."
+            
+            # Actualizar imagen en deployment
+            kubectl set image deployment/$SERVICE -n dev $SERVICE=$REGISTRY/$GCP_PROJECT_ID/$SERVICE:${GITHUB_SHA::8}
+            
+            # Esperar que el deployment se complete
+            kubectl rollout status deployment/$SERVICE -n dev --timeout=300s
+            
+            # Verificar que los pods estén listos
+            kubectl wait --for=condition=ready pod -l app=$SERVICE -n dev --timeout=300s
+            
+            echo "✅ $SERVICE deployed successfully"
+          else
+            echo "⏭️ $SERVICE - No changes, skipping deployment"
+          fi
+        done
+        
+    - name: Verify deployment health
+      run: |
+        echo "🔍 Checking deployment health..."
+        kubectl get pods -n dev
+        kubectl get services -n dev
+        
+        # Verificar que todos los pods estén corriendo
+        FAILED_PODS=$(kubectl get pods -n dev --field-selector=status.phase!=Running,status.phase!=Succeeded -o jsonpath='{.items[*].metadata.name}')
+        if [[ -n "$FAILED_PODS" ]]; then
+          echo "❌ Failed pods detected: $FAILED_PODS"
+          exit 1
+        fi
+        
+        echo "✅ All services are healthy"
+
+  # Rollback automático en caso de fallo
+  rollback-on-failure:
+    runs-on: ubuntu-latest
+    needs: [deploy-to-k8s]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Rollback deployments
+      run: |
+        echo "🚨 Deployment failed! Rolling back..."
+        
+        SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
+        
+        for SERVICE in "${SERVICES[@]}"; do
+          echo "Rolling back $SERVICE..."
+          kubectl rollout undo deployment/$SERVICE -n dev || true
+          kubectl rollout status deployment/$SERVICE -n dev --timeout=300s || true
+        done
+        
+        echo "🔄 Rollback completed"
+        
+    - name: Notify failure
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: failure
+        text: "🚨 Production deployment failed and was rolled back!"
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Pruebas post-deployment
+  post-deployment-tests:
+    runs-on: ubuntu-latest
+    needs: [deploy-to-k8s]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Health Check Tests
+      run: |
+        echo "🩺 Running health checks..."
+        
+        # Obtener las IPs de los servicios
+        API_GATEWAY_IP=$(kubectl get svc api-gateway -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || echo "")
+        GRAFANA_IP=$(kubectl get svc grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || echo "")
+        
+        if [[ -n "$API_GATEWAY_IP" ]]; then
+          echo "Testing API Gateway health..."
+          curl -f http://$API_GATEWAY_IP/actuator/health || exit 1
+          echo "✅ API Gateway is healthy"
+        fi
+        
+        # Verificar que service-discovery tenga servicios registrados
+        echo "Checking service registry..."
+        kubectl port-forward svc/service-discovery -n dev 8761:8761 &
+        PF_PID=$!
+        sleep 5
+        
+        REGISTERED_SERVICES=$(curl -s http://localhost:8761/eureka/apps | grep -o '<name>[^<]*</name>' | wc -l || echo "0")
+        kill $PF_PID
+        
+        if [[ $REGISTERED_SERVICES -gt 0 ]]; then
+          echo "✅ Service discovery has $REGISTERED_SERVICES services registered"
+        else
+          echo "⚠️ No services registered in Eureka"
+        fi
+        
+    - name: Integration Tests
+      run: |
+        echo "🔗 Running integration tests..."
+        
+        # Test básico de conectividad entre servicios
+        kubectl port-forward svc/api-gateway -n dev 8080:80 &
+        PF_PID=$!
+        sleep 10
+        
+        # Test de endpoints críticos
+        echo "Testing user service through API Gateway..."
+        curl -f http://localhost:8080/user-service/actuator/health || exit 1
+        
+        echo "Testing product service through API Gateway..."  
+        curl -f http://localhost:8080/product-service/actuator/health || exit 1
+        
+        kill $PF_PID
+        
+        echo "✅ Integration tests passed"
+        
+    - name: Notify success
+      uses: 8398a7/action-slack@v3
+      if: success()
+      with:
+        status: success
+        text: "✅ Production deployment successful! All health checks passed."
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -6,7 +6,7 @@ echo "🔧 CORRIGIENDO TODOS LOS SCRIPTS DE MIGRACIÓN PARA POSTGRESQL"
 echo "============================================================="
 echo ""
 
-cd user-service/src/main/resources/db/migration/
+cd microservices/user-service/src/main/resources/db/migration/
 
 # Backup de todos los archivos originales
 echo "📦 Creando backups..."
@@ -230,5 +230,4 @@ kubectl get pods -n dev -l app=user-service
 echo ""
 
 echo "📝 Logs (presiona Ctrl+C para salir):"
-kubectl logs -n dev -f -l app=user-service -c user-service
-EOF
+kubectl logs -n dev -f -l app=user-service -c us

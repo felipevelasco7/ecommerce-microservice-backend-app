@@ -1,0 +1,195 @@
+# Configurar Pod Security Standards para el namespace dev
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# NetworkPolicy para microservicios - Deny all por defecto
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: dev
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# NetworkPolicy para permitir comunicación entre microservicios
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-microservices-communication
+  namespace: dev
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: microservice
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: microservice
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: microservice
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+# NetworkPolicy para API Gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway-policy
+  namespace: dev
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: microservice
+  - to:
+    - podSelector:
+        matchLabels:
+          app: service-discovery
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+# NetworkPolicy para Base de Datos
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-policy
+  namespace: dev
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: microservice
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+# PodSecurityPolicy para microservicios (si está habilitado)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: microservices-psp
+  namespace: dev
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: false
+  seLinux:
+    rule: RunAsAny
+---
+# ClusterRole para PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: microservices-psp-user
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - microservices-psp
+---
+# RoleBinding para ServiceAccounts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: microservices-psp-users
+  namespace: dev
+roleRef:
+  kind: ClusterRole
+  name: microservices-psp-user
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: user-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: product-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: order-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: payment-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: shipping-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: favourite-service-sa
+  namespace: dev
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: dev
