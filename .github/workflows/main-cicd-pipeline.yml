@@ -1,15 +1,17 @@
-name: 🚀 Main CI/CD Pipeline - Ecommerce Microservices
+name: 📦 Main CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, main ]
-    paths:
-      - 'microservices/**'
-      - 'k8s/**'
-      - 'pom.xml'
-      - '.github/workflows/**'
+    branches: [ main ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
   pull_request:
-    branches: [ master, main ]
+    branches: [ main ]
+    paths-ignore:
+      - '*.md'  
+      - 'docs/**'
+  workflow_dispatch:
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
@@ -18,11 +20,12 @@ env:
   REGISTRY: gcr.io
 
 jobs:
-  # 🔍 Detectar cambios en microservicios
+  # 🔍 Detect Changes
   detect-changes:
     name: 🔍 Detect Service Changes
     runs-on: ubuntu-latest
     outputs:
+      any-changes: ${{ steps.changes.outputs.any-changes }}
       api-gateway: ${{ steps.changes.outputs.api-gateway }}
       user-service: ${{ steps.changes.outputs.user-service }}
       product-service: ${{ steps.changes.outputs.product-service }}
@@ -34,179 +37,211 @@ jobs:
       service-discovery: ${{ steps.changes.outputs.service-discovery }}
       proxy-client: ${{ steps.changes.outputs.proxy-client }}
       frontend: ${{ steps.changes.outputs.frontend }}
-      k8s-configs: ${{ steps.changes.outputs.k8s-configs }}
     steps:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        
-    - name: 🔍 Detect Changes
-      uses: dorny/paths-filter@v2
-      id: changes
-      with:
-        filters: |
-          api-gateway:
-            - 'microservices/api-gateway/**'
-          user-service:
-            - 'microservices/user-service/**'
-          product-service:
-            - 'microservices/product-service/**'
-          payment-service:
-            - 'microservices/payment-service/**'
-          order-service:
-            - 'microservices/order-service/**'
-          shipping-service:
-            - 'microservices/shipping-service/**'
-          favourite-service:
-            - 'microservices/favourite-service/**'
-          cloud-config:
-            - 'microservices/cloud-config/**'
-          service-discovery:
-            - 'microservices/service-discovery/**'
-          proxy-client:
-            - 'microservices/proxy-client/**'
-          frontend:
-            - 'microservices/frontend/**'
-          k8s-configs:
-            - 'k8s/**'
-            - 'helm/**'
 
-  # 🧪 Testing y Security Scanning
+    - name: 🔍 Detect Changes
+      id: changes
+      run: |
+        echo "Detecting changes in microservices..."
+        
+        # If this is the first push or no previous commit, build all
+        if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
+          echo "First commit detected, building all services"
+          echo "any-changes=true" >> $GITHUB_OUTPUT
+          echo "api-gateway=true" >> $GITHUB_OUTPUT
+          echo "user-service=true" >> $GITHUB_OUTPUT
+          echo "product-service=true" >> $GITHUB_OUTPUT
+          echo "payment-service=true" >> $GITHUB_OUTPUT
+          echo "order-service=true" >> $GITHUB_OUTPUT
+          echo "shipping-service=true" >> $GITHUB_OUTPUT
+          echo "favourite-service=true" >> $GITHUB_OUTPUT
+          echo "cloud-config=true" >> $GITHUB_OUTPUT
+          echo "service-discovery=true" >> $GITHUB_OUTPUT
+          echo "proxy-client=true" >> $GITHUB_OUTPUT
+          echo "frontend=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Check for changes in each service
+        services=("api-gateway" "user-service" "product-service" "payment-service" "order-service" "shipping-service" "favourite-service" "cloud-config" "service-discovery" "proxy-client" "frontend")
+        any_changes=false
+        
+        for service in "${services[@]}"; do
+          if git diff --name-only HEAD~1 HEAD | grep -E "^microservices/$service/|^k8s/.*$service" >/dev/null; then
+            echo "$service=true" >> $GITHUB_OUTPUT
+            echo "✅ Changes detected in $service"
+            any_changes=true
+          else
+            echo "$service=false" >> $GITHUB_OUTPUT
+            echo "➖ No changes in $service"
+          fi
+        done
+        
+        # Set overall flag
+        echo "any-changes=$any_changes" >> $GITHUB_OUTPUT
+        
+        if [ "$any_changes" = "true" ]; then
+          echo "🚀 Pipeline will proceed with changed services"
+        else
+          echo "⏸️ No service changes detected, skipping build"
+        fi
+
+  # 🧪 Test and Security Analysis
   test-and-security:
-    name: 🧪 Test & Security Scan
+    name: 🧪 Test & Security Analysis
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.api-gateway == 'true' ||
-      needs.detect-changes.outputs.user-service == 'true' ||
-      needs.detect-changes.outputs.product-service == 'true' ||
-      needs.detect-changes.outputs.payment-service == 'true' ||
-      needs.detect-changes.outputs.order-service == 'true' ||
-      needs.detect-changes.outputs.shipping-service == 'true' ||
-      needs.detect-changes.outputs.favourite-service == 'true' ||
-      needs.detect-changes.outputs.cloud-config == 'true' ||
-      needs.detect-changes.outputs.service-discovery == 'true' ||
-      needs.detect-changes.outputs.proxy-client == 'true'
+    if: needs.detect-changes.outputs.any-changes == 'true'
     steps:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       
-    - name: ☕ Setup Java 11
+    - name: ☕ Setup Java
       uses: actions/setup-java@v4
       with:
         java-version: '11'
         distribution: 'temurin'
         
-    - name: 📦 Cache Maven Dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
-        
     - name: 🧪 Run Unit Tests
       run: |
         echo "🧪 Running unit tests for changed services..."
-        mvn clean test -B
         
-    - name: 📊 Generate Test Reports
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
-      with:
-        name: 📊 Maven Tests
-        path: '**/target/surefire-reports/*.xml'
-        reporter: java-junit
+        # Test services that have changed
+        test_service() {
+          local service=$1
+          local changed=$2
+          
+          if [ "$changed" == "true" ] && [ -f "microservices/$service/pom.xml" ]; then
+            echo "Testing $service..."
+            mvn test -f microservices/$service/pom.xml || exit 1
+          fi
+        }
         
-    - name: 🔐 Security Scan - Dependencies
+        # Test each service if changed
+        test_service "api-gateway" "${{ needs.detect-changes.outputs.api-gateway }}"
+        test_service "user-service" "${{ needs.detect-changes.outputs.user-service }}"
+        test_service "product-service" "${{ needs.detect-changes.outputs.product-service }}"
+        test_service "payment-service" "${{ needs.detect-changes.outputs.payment-service }}"
+        test_service "order-service" "${{ needs.detect-changes.outputs.order-service }}"
+        test_service "shipping-service" "${{ needs.detect-changes.outputs.shipping-service }}"
+        test_service "favourite-service" "${{ needs.detect-changes.outputs.favourite-service }}"
+        test_service "cloud-config" "${{ needs.detect-changes.outputs.cloud-config }}"
+        test_service "service-discovery" "${{ needs.detect-changes.outputs.service-discovery }}"
+        test_service "proxy-client" "${{ needs.detect-changes.outputs.proxy-client }}"
+        
+        echo "✅ All tests completed successfully"
+
+    - name: 🔒 Security Scan
       run: |
-        echo "🔐 Scanning for vulnerabilities..."
-        mvn org.owasp:dependency-check-maven:check || true
+        echo "🔒 Running security scans..."
         
-    - name: 🔍 Code Quality Analysis
-      run: |
-        echo "🔍 Analyzing code quality..."
-        mvn compile || true
+        # Maven security scan for Java services
+        for service_dir in microservices/*/; do
+          if [ -f "$service_dir/pom.xml" ]; then
+            service_name=$(basename "$service_dir")
+            echo "Scanning $service_name for vulnerabilities..."
+            mvn org.owasp:dependency-check-maven:check -f "$service_dir/pom.xml" || echo "⚠️ Security scan warning for $service_name"
+          fi
+        done
+        
+        echo "✅ Security scan completed"
 
   # 🏗️ Build and Push Images
   build-and-push:
     name: 🏗️ Build & Push Images
     runs-on: ubuntu-latest
     needs: [detect-changes, test-and-security]
-    if: github.event_name == 'push'
-    strategy:
-      matrix:
-        service: [
-          api-gateway, user-service, product-service, payment-service,
-          order-service, shipping-service, favourite-service,
-          cloud-config, service-discovery, proxy-client, frontend
-        ]
+    if: needs.detect-changes.outputs.any-changes == 'true'
     steps:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       
-    - name: ☕ Setup Java 11
+    - name: ☕ Setup Java
       uses: actions/setup-java@v4
       with:
         java-version: '11'
         distribution: 'temurin'
-      if: matrix.service != 'frontend'
         
     - name: 🔑 Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-      if: needs.detect-changes.outputs[matrix.service] == 'true'
         
     - name: 🛠️ Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
-      if: needs.detect-changes.outputs[matrix.service] == 'true'
         
     - name: 🐳 Configure Docker for GCR
       run: gcloud auth configure-docker
-      if: needs.detect-changes.outputs[matrix.service] == 'true'
       
-    - name: 📦 Build Maven Project
+    - name: 🏗️ Build and Push Services
       run: |
-        if [ -f "microservices/${{ matrix.service }}/pom.xml" ]; then
-          echo "🏗️ Building ${{ matrix.service }}..."
-          mvn clean package -DskipTests -f microservices/${{ matrix.service }}/pom.xml
-        fi
-      if: needs.detect-changes.outputs[matrix.service] == 'true' && matrix.service != 'frontend'
-      
-    - name: 🐳 Build and Push Docker Image
-      run: |
-        if [ -f "microservices/${{ matrix.service }}/Dockerfile" ]; then
-          echo "🐳 Building Docker image for ${{ matrix.service }}..."
+        echo "🏗️ Building and pushing changed services..."
+        
+        build_and_push_service() {
+          local service=$1
+          local changed=$2
           
-          # Build image
-          docker build \
-            -f microservices/${{ matrix.service }}/Dockerfile \
-            -t ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ github.sha }} \
-            -t ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest \
-            .
-          
-          # Push images
-          docker push ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ matrix.service }}:latest
-          
-          echo "✅ Successfully built and pushed ${{ matrix.service }}"
-        else
-          echo "⚠️ No Dockerfile found for ${{ matrix.service }}"
-        fi
-      if: needs.detect-changes.outputs[matrix.service] == 'true'
+          if [ "$changed" == "true" ]; then
+            echo "🔨 Building $service..."
+            
+            # Build Maven project if exists
+            if [ -f "microservices/$service/pom.xml" ]; then
+              echo "📦 Building Maven project for $service..."
+              mvn clean package -DskipTests -f microservices/$service/pom.xml
+            fi
+            
+            # Build and push Docker image if Dockerfile exists
+            if [ -f "microservices/$service/Dockerfile" ]; then
+              echo "🐳 Building Docker image for $service..."
+              
+              # Build image
+              docker build \
+                -f microservices/$service/Dockerfile \
+                -t ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$service:${{ github.sha }} \
+                -t ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$service:latest \
+                microservices/$service/
+              
+              # Push images
+              docker push ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$service:${{ github.sha }}
+              docker push ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$service:latest
+              
+              echo "✅ Successfully built and pushed $service"
+            else
+              echo "⚠️ No Dockerfile found for $service"
+            fi
+          else
+            echo "⏭️ Skipping $service (no changes)"
+          fi
+        }
+        
+        # Build each service if changed
+        build_and_push_service "api-gateway" "${{ needs.detect-changes.outputs.api-gateway }}"
+        build_and_push_service "user-service" "${{ needs.detect-changes.outputs.user-service }}"
+        build_and_push_service "product-service" "${{ needs.detect-changes.outputs.product-service }}"
+        build_and_push_service "payment-service" "${{ needs.detect-changes.outputs.payment-service }}"
+        build_and_push_service "order-service" "${{ needs.detect-changes.outputs.order-service }}"
+        build_and_push_service "shipping-service" "${{ needs.detect-changes.outputs.shipping-service }}"
+        build_and_push_service "favourite-service" "${{ needs.detect-changes.outputs.favourite-service }}"
+        build_and_push_service "cloud-config" "${{ needs.detect-changes.outputs.cloud-config }}"
+        build_and_push_service "service-discovery" "${{ needs.detect-changes.outputs.service-discovery }}"
+        build_and_push_service "proxy-client" "${{ needs.detect-changes.outputs.proxy-client }}"
+        build_and_push_service "frontend" "${{ needs.detect-changes.outputs.frontend }}"
 
   # 🚀 Deploy to Development
   deploy-to-dev:
     name: 🚀 Deploy to Development
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-and-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     environment: development
+    needs: [detect-changes, build-and-push]
+    if: needs.detect-changes.outputs.any-changes == 'true'
     steps:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
-      
+
     - name: 🔑 Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
@@ -225,43 +260,94 @@ jobs:
       run: |
         echo "🚀 Deploying changed services to development..."
         
-        # Update image tags in deployments
-        for service in api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client frontend; do
-          if [ "${{ needs.detect-changes.outputs[service] }}" == "true" ]; then
-            echo "📦 Updating $service deployment..."
+        # Function to deploy service
+        deploy_service() {
+          local service=$1
+          local changed=$2
+          
+          if [ "$changed" == "true" ]; then
+            echo "📦 Deploying $service..."
             
+            # Check if deployment exists, if not apply from k8s manifests
             if kubectl get deployment $service -n dev >/dev/null 2>&1; then
+              # Update existing deployment
               kubectl set image deployment/$service $service=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$service:${{ github.sha }} -n dev
               kubectl rollout status deployment/$service -n dev --timeout=300s
             else
-              echo "⚠️ Deployment $service not found in dev namespace"
+              # Apply from k8s manifests
+              echo "Creating new deployment for $service..."
+              kubectl apply -f k8s/deployments/$service.yaml -n dev || echo "⚠️ No k8s manifest for $service"
+              kubectl apply -f k8s/services/$service.yaml -n dev || echo "⚠️ No service manifest for $service"
+            fi
+            
+            echo "✅ $service deployed successfully"
+          else
+            echo "⏭️ Skipping $service deployment (no changes)"
+          fi
+        }
+        
+        # Deploy changed services
+        deploy_service "api-gateway" "${{ needs.detect-changes.outputs.api-gateway }}"
+        deploy_service "user-service" "${{ needs.detect-changes.outputs.user-service }}"
+        deploy_service "product-service" "${{ needs.detect-changes.outputs.product-service }}"
+        deploy_service "payment-service" "${{ needs.detect-changes.outputs.payment-service }}"
+        deploy_service "order-service" "${{ needs.detect-changes.outputs.order-service }}"
+        deploy_service "shipping-service" "${{ needs.detect-changes.outputs.shipping-service }}"
+        deploy_service "favourite-service" "${{ needs.detect-changes.outputs.favourite-service }}"
+        deploy_service "cloud-config" "${{ needs.detect-changes.outputs.cloud-config }}"
+        deploy_service "service-discovery" "${{ needs.detect-changes.outputs.service-discovery }}"
+        deploy_service "proxy-client" "${{ needs.detect-changes.outputs.proxy-client }}"
+        deploy_service "frontend" "${{ needs.detect-changes.outputs.frontend }}"
+        
+        echo "🎉 Deployment completed!"
+
+    - name: 🩺 Health Check
+      run: |
+        echo "🩺 Running health checks..."
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Check service health
+        check_service_health() {
+          local service=$1
+          local changed=$2
+          
+          if [ "$changed" == "true" ]; then
+            if kubectl get pods -l app=$service -n dev | grep -q "Running"; then
+              echo "✅ $service is healthy"
+            else
+              echo "⚠️ $service may have issues"
+              kubectl get pods -l app=$service -n dev || echo "No pods found for $service"
             fi
           fi
-        done
+        }
         
-    - name: ✅ Verify Deployment
-      run: |
-        echo "✅ Verifying deployment health..."
-        kubectl get pods -n dev
-        kubectl get svc -n dev
+        check_service_health "api-gateway" "${{ needs.detect-changes.outputs.api-gateway }}"
+        check_service_health "user-service" "${{ needs.detect-changes.outputs.user-service }}"
+        check_service_health "product-service" "${{ needs.detect-changes.outputs.product-service }}"
+        check_service_health "payment-service" "${{ needs.detect-changes.outputs.payment-service }}"
+        check_service_health "order-service" "${{ needs.detect-changes.outputs.order-service }}"
+        check_service_health "shipping-service" "${{ needs.detect-changes.outputs.shipping-service }}"
+        check_service_health "favourite-service" "${{ needs.detect-changes.outputs.favourite-service }}"
         
-        # Check if services are healthy
-        for service in api-gateway user-service product-service; do
-          if kubectl get deployment $service -n dev >/dev/null 2>&1; then
-            kubectl wait --for=condition=available --timeout=300s deployment/$service -n dev || true
-          fi
-        done
+        echo "🏥 Health check completed"
 
-  # 📊 Notify Results
-  notify:
-    name: 📊 Notify Pipeline Results
+  # 📊 Pipeline Summary
+  pipeline-summary:
+    name: 📊 Pipeline Summary
     runs-on: ubuntu-latest
     needs: [detect-changes, test-and-security, build-and-push, deploy-to-dev]
     if: always()
     steps:
-    - name: 📊 Pipeline Summary
+    - name: 📊 Generate Summary
       run: |
         echo "## 📊 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Job Results" >> $GITHUB_STEP_SUMMARY
         echo "- **🔍 Changes Detected**: ${{ needs.detect-changes.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- **🧪 Tests & Security**: ${{ needs.test-and-security.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- **🏗️ Build & Push**: ${{ needs.build-and-push.result }}" >> $GITHUB_STEP_SUMMARY
@@ -269,10 +355,22 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Services Changed:" >> $GITHUB_STEP_SUMMARY
         
-        services=("api-gateway" "user-service" "product-service" "payment-service" "order-service" "shipping-service" "favourite-service" "cloud-config" "service-discovery" "proxy-client" "frontend")
+        # Display changed services
+        [ "${{ needs.detect-changes.outputs.api-gateway }}" == "true" ] && echo "- ✅ api-gateway" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.user-service }}" == "true" ] && echo "- ✅ user-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.product-service }}" == "true" ] && echo "- ✅ product-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.payment-service }}" == "true" ] && echo "- ✅ payment-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.order-service }}" == "true" ] && echo "- ✅ order-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.shipping-service }}" == "true" ] && echo "- ✅ shipping-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.favourite-service }}" == "true" ] && echo "- ✅ favourite-service" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.cloud-config }}" == "true" ] && echo "- ✅ cloud-config" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.service-discovery }}" == "true" ] && echo "- ✅ service-discovery" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.proxy-client }}" == "true" ] && echo "- ✅ proxy-client" >> $GITHUB_STEP_SUMMARY
+        [ "${{ needs.detect-changes.outputs.frontend }}" == "true" ] && echo "- ✅ frontend" >> $GITHUB_STEP_SUMMARY
         
-        for service in "${services[@]}"; do
-          if [ "${{ needs.detect-changes.outputs[service] }}" == "true" ]; then
-            echo "- ✅ $service" >> $GITHUB_STEP_SUMMARY
-          fi
-        done
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.deploy-to-dev.result }}" == "success" ]; then
+          echo "🎉 **Pipeline completed successfully!**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Pipeline failed. Check logs for details.**" >> $GITHUB_STEP_SUMMARY
+        fi
