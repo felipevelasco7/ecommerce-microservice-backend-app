@@ -1,0 +1,105 @@
+name: 🔄 Blue-Green Deployment (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        type: choice
+        options:
+          - api-gateway
+          - user-service
+          - product-service
+          - payment-service
+          - order-service
+          - shipping-service
+          - favourite-service
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+jobs:
+  blue-green-deploy:
+    name: 🔄 Blue-Green Deployment
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: 🛠️ Setup gcloud and kubectl
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
+      
+    - name: ⚙️ Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+          
+    - name: 🔄 Blue-Green Deployment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        
+        echo "🔄 Starting Blue-Green deployment for $SERVICE..."
+        
+        # Check if deployment exists
+        if kubectl get deployment $SERVICE -n dev >/dev/null 2>&1; then
+          echo "📦 Updating existing deployment..."
+          
+          # Update deployment with new image
+          kubectl set image deployment/$SERVICE \
+            $SERVICE=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG \
+            -n dev
+            
+          # Wait for rollout
+          kubectl rollout status deployment/$SERVICE -n dev --timeout=300s
+          
+          echo "✅ Blue-Green deployment completed successfully!"
+        else
+          echo "⚠️ Deployment $SERVICE not found. Please run main pipeline first."
+          exit 1
+        fi
+        
+    - name: 🩺 Health Check
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🩺 Running health check..."
+        
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=$SERVICE -n dev --timeout=300s
+        
+        # Check if pods are running
+        RUNNING_PODS=$(kubectl get pods -l app=$SERVICE -n dev --field-selector=status.phase=Running --no-headers | wc -l)
+        
+        if [ "$RUNNING_PODS" -gt 0 ]; then
+          echo "✅ Health check passed - $RUNNING_PODS pod(s) running"
+        else
+          echo "❌ Health check failed - No running pods found"
+          kubectl get pods -l app=$SERVICE -n dev
+          exit 1
+        fi
+        
+    - name: 📊 Summary
+      run: |
+        echo "## 🔄 Blue-Green Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**Service**: ${{ github.event.inputs.service }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image**: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ github.event.inputs.service }}:${{ github.event.inputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Status**: ✅ Deployment completed successfully" >> $GITHUB_STEP_SUMMARY

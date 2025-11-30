@@ -62,8 +62,16 @@ jobs:
       
     - name: 🔧 Install GKE Auth Plugin
       run: |
-        gcloud components install gke-gcloud-auth-plugin
-        export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+        # Install the plugin using apt (more reliable in GitHub Actions)
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        
+        # Install gke-gcloud-auth-plugin
+        sudo apt-get update
+        sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+        
+        # Set environment variable
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
       
     - name: ⚙️ Get GKE Credentials
       run: |

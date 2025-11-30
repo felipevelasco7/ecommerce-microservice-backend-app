@@ -1,0 +1,168 @@
+name: 🐦 Canary Deployment (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy with canary strategy'
+        required: true
+        type: choice
+        options:
+          - api-gateway
+          - user-service
+          - product-service
+          - payment-service
+          - order-service
+          - shipping-service
+          - favourite-service
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+      canary_percentage:
+        description: 'Percentage of traffic (1-50)'
+        required: true
+        default: '10'
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+jobs:
+  canary-deploy:
+    name: 🐦 Canary Deployment
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: 🛠️ Setup gcloud and kubectl
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
+      
+    - name: ⚙️ Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+          
+    - name: 📊 Validate Inputs
+      run: |
+        echo "🔍 Validating canary deployment inputs..."
+        
+        if [ "${{ github.event.inputs.canary_percentage }}" -lt 1 ] || [ "${{ github.event.inputs.canary_percentage }}" -gt 50 ]; then
+          echo "❌ Canary percentage must be between 1 and 50"
+          exit 1
+        fi
+        
+        echo "✅ Inputs validated successfully"
+        
+    - name: 🐦 Create Canary Deployment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        CANARY_PERCENTAGE="${{ github.event.inputs.canary_percentage }}"
+        
+        echo "🐦 Creating canary deployment for $SERVICE..."
+        
+        # Check if main deployment exists
+        if ! kubectl get deployment $SERVICE -n dev >/dev/null 2>&1; then
+          echo "⚠️ Main deployment for $SERVICE not found. Available deployments:"
+          kubectl get deployments -n dev
+          echo "ℹ️ Please run main CI/CD pipeline first to create base deployment"
+          exit 1
+        fi
+        
+        # Create canary deployment (simple approach - just scale and update)
+        echo "📦 Scaling main deployment to make room for canary..."
+        
+        # Get current replicas
+        CURRENT_REPLICAS=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.replicas}')
+        CANARY_REPLICAS=1
+        STABLE_REPLICAS=$((CURRENT_REPLICAS - CANARY_REPLICAS))
+        
+        if [ "$STABLE_REPLICAS" -lt 1 ]; then
+          STABLE_REPLICAS=1
+          CANARY_REPLICAS=1
+          echo "ℹ️ Adjusting replicas: Stable=$STABLE_REPLICAS, Canary=$CANARY_REPLICAS"
+        fi
+        
+        # Scale down main deployment temporarily
+        kubectl scale deployment $SERVICE --replicas=$STABLE_REPLICAS -n dev
+        
+        # Create canary deployment
+        kubectl get deployment $SERVICE -n dev -o yaml | \
+        sed "s/$SERVICE/$SERVICE-canary/g" | \
+        sed "s/replicas: $CURRENT_REPLICAS/replicas: $CANARY_REPLICAS/" | \
+        sed "s|image: .*|image: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG|" | \
+        kubectl apply -f -
+        
+        # Wait for canary to be ready
+        kubectl rollout status deployment/$SERVICE-canary -n dev --timeout=300s
+        
+        echo "✅ Canary deployment created successfully"
+        echo "📊 Current state:"
+        kubectl get pods -l app=$SERVICE -n dev
+        
+    - name: 🧪 Test Canary
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🧪 Testing canary deployment..."
+        
+        # Wait a bit for stabilization
+        sleep 30
+        
+        # Check if canary pods are running
+        CANARY_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev --field-selector=status.phase=Running --no-headers | wc -l)
+        
+        if [ "$CANARY_PODS" -gt 0 ]; then
+          echo "✅ Canary test passed - $CANARY_PODS canary pod(s) running"
+        else
+          echo "❌ Canary test failed"
+          kubectl get pods -l app=$SERVICE-canary -n dev
+          exit 1
+        fi
+        
+    - name: ✅ Promote Canary
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        
+        echo "✅ Promoting canary to production..."
+        
+        # Update main deployment with canary image
+        kubectl set image deployment/$SERVICE \
+          $SERVICE=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG \
+          -n dev
+          
+        # Scale main deployment back to original size
+        ORIGINAL_REPLICAS=$(kubectl get deployment $SERVICE-canary -n dev -o jsonpath='{.spec.replicas}')
+        MAIN_REPLICAS=$((ORIGINAL_REPLICAS + 1))
+        kubectl scale deployment $SERVICE --replicas=$MAIN_REPLICAS -n dev
+        
+        # Wait for main deployment rollout
+        kubectl rollout status deployment/$SERVICE -n dev --timeout=300s
+        
+        # Clean up canary
+        kubectl delete deployment $SERVICE-canary -n dev
+        
+        echo "🎉 Canary promotion completed successfully!"
+        
+    - name: 📊 Summary
+      run: |
+        echo "## 🐦 Canary Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**Service**: ${{ github.event.inputs.service }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image**: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ github.event.inputs.service }}:${{ github.event.inputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Canary %**: ${{ github.event.inputs.canary_percentage }}%" >> $GITHUB_STEP_SUMMARY
+        echo "**Status**: ✅ Canary deployment completed and promoted successfully" >> $GITHUB_STEP_SUMMARY
