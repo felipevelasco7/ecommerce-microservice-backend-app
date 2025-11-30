@@ -100,60 +100,38 @@ jobs:
         # Scale down main deployment temporarily
         kubectl scale deployment $SERVICE --replicas=$STABLE_REPLICAS -n dev
         
-        # Create canary deployment with temporary file approach
-        cat > /tmp/canary-deployment.yaml << 'HEREDOC_END'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: SERVICE_PLACEHOLDER-canary
-  namespace: dev
-  labels:
-    app: SERVICE_PLACEHOLDER-canary
-    version: canary
-spec:
-  replicas: REPLICAS_PLACEHOLDER
-  selector:
-    matchLabels:
-      app: SERVICE_PLACEHOLDER-canary
-  template:
-    metadata:
-      labels:
-        app: SERVICE_PLACEHOLDER-canary
-        version: canary
-    spec:
-      containers:
-      - name: SERVICE_PLACEHOLDER
-        image: IMAGE_PLACEHOLDER
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-HEREDOC_END
+        # Create canary deployment using kubectl directly (no heredoc)
+        kubectl create deployment $SERVICE-canary --image=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG --replicas=$CANARY_REPLICAS -n dev --dry-run=client -o yaml > /tmp/canary-base.yaml
         
-        # Replace placeholders in the file
-        sed -i "s/SERVICE_PLACEHOLDER/$SERVICE/g" /tmp/canary-deployment.yaml
-        sed -i "s/REPLICAS_PLACEHOLDER/$CANARY_REPLICAS/g" /tmp/canary-deployment.yaml
-        sed -i "s|IMAGE_PLACEHOLDER|${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG|g" /tmp/canary-deployment.yaml
+        # Apply base deployment
+        kubectl apply -f /tmp/canary-base.yaml
         
-        # Apply the deployment
-        kubectl apply -f /tmp/canary-deployment.yaml
+        # Add health checks and resource limits via patch
+        kubectl patch deployment $SERVICE-canary -n dev --type='merge' -p='{
+          "spec": {
+            "template": {
+              "spec": {
+                "containers": [{
+                  "name": "'$SERVICE'",
+                  "resources": {
+                    "requests": {"memory": "256Mi", "cpu": "100m"},
+                    "limits": {"memory": "512Mi", "cpu": "500m"}
+                  },
+                  "livenessProbe": {
+                    "httpGet": {"path": "/actuator/health", "port": 8080},
+                    "initialDelaySeconds": 60,
+                    "periodSeconds": 30
+                  },
+                  "readinessProbe": {
+                    "httpGet": {"path": "/actuator/health", "port": 8080},
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 10
+                  }
+                }]
+              }
+            }
+          }
+        }'
         
         # Check if canary deployment was created successfully
         if kubectl get deployment/$SERVICE-canary -n dev >/dev/null 2>&1; then
