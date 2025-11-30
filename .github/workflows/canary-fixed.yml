@@ -1,0 +1,250 @@
+name: 🐦 Canary Deployment (Fixed)
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy with canary strategy'
+        required: true
+        type: choice
+        options:
+          - api-gateway
+          - user-service
+          - product-service
+          - payment-service
+          - order-service
+          - shipping-service
+          - favourite-service
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+      canary_percentage:
+        description: 'Percentage of traffic (1-50)'
+        required: true
+        default: '10'
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
+
+jobs:
+  canary-deploy:
+    name: 🐦 Canary Deployment
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: 🛠️ Setup gcloud and kubectl
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
+      
+    - name: ⚙️ Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+
+    - name: 📊 Validate Inputs
+      run: |
+        echo "🔍 Validating canary deployment inputs..."
+        
+        if [ "${{ github.event.inputs.canary_percentage }}" -lt 1 ] || [ "${{ github.event.inputs.canary_percentage }}" -gt 50 ]; then
+          echo "❌ Canary percentage must be between 1 and 50"
+          exit 1
+        fi
+        
+        echo "✅ Inputs validated successfully"
+        echo "Service: ${{ github.event.inputs.service }}"
+        echo "Image Tag: ${{ github.event.inputs.image_tag }}"
+        echo "Canary Percentage: ${{ github.event.inputs.canary_percentage }}%"
+
+    - name: 🐦 Deploy Canary Version
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        CANARY_PERCENTAGE="${{ github.event.inputs.canary_percentage }}"
+        
+        echo "🚀 Starting canary deployment for $SERVICE:$IMAGE_TAG"
+        
+        # Calculate replica counts
+        MAIN_REPLICAS=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "2")
+        CANARY_REPLICAS=$(( (MAIN_REPLICAS * CANARY_PERCENTAGE + 50) / 100 ))
+        if [ "$CANARY_REPLICAS" -lt 1 ]; then
+          CANARY_REPLICAS=1
+        fi
+        STABLE_REPLICAS=$(( MAIN_REPLICAS - CANARY_REPLICAS ))
+        if [ "$STABLE_REPLICAS" -lt 1 ]; then
+          STABLE_REPLICAS=1
+        fi
+        
+        echo "📊 Replica distribution:"
+        echo "  Main (stable): $STABLE_REPLICAS"
+        echo "  Canary (new): $CANARY_REPLICAS"
+        
+        # Create or ensure namespace exists
+        kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Scale down main deployment temporarily
+        kubectl scale deployment $SERVICE --replicas=$STABLE_REPLICAS -n dev
+        
+        # Create canary deployment
+        cat > canary-deployment.yaml << 'CANARY_EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: SERVICE_NAME-canary
+  namespace: dev
+  labels:
+    app: SERVICE_NAME-canary
+    version: canary
+spec:
+  replicas: CANARY_REPLICAS_COUNT
+  selector:
+    matchLabels:
+      app: SERVICE_NAME-canary
+  template:
+    metadata:
+      labels:
+        app: SERVICE_NAME-canary
+        version: canary
+    spec:
+      containers:
+      - name: SERVICE_NAME
+        image: IMAGE_FULL_PATH
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+CANARY_EOF
+        
+        # Replace placeholders
+        sed -i "s/SERVICE_NAME/$SERVICE/g" canary-deployment.yaml
+        sed -i "s/CANARY_REPLICAS_COUNT/$CANARY_REPLICAS/g" canary-deployment.yaml
+        sed -i "s|IMAGE_FULL_PATH|${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG|g" canary-deployment.yaml
+        
+        # Apply canary deployment
+        kubectl apply -f canary-deployment.yaml
+        
+        # Check if canary deployment was created successfully
+        if kubectl get deployment/$SERVICE-canary -n dev >/dev/null 2>&1; then
+          echo "✅ Canary deployment created"
+          
+          # Wait for canary to be ready
+          echo "⏳ Waiting for canary deployment to be ready..."
+          if ! kubectl rollout status deployment/$SERVICE-canary -n dev --timeout=180s; then
+            echo "⚠️ Canary deployment taking longer than expected"
+            kubectl describe deployment/$SERVICE-canary -n dev
+            kubectl get pods -l app=$SERVICE-canary -n dev -o wide
+            exit 1
+          fi
+          
+          echo "✅ Canary deployment is ready"
+        else
+          echo "❌ Failed to create canary deployment"
+          exit 1
+        fi
+
+    - name: 🧪 Test Canary Health
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔍 Testing canary health..."
+        
+        # Get canary pod
+        CANARY_POD=$(kubectl get pods -l app=$SERVICE-canary -n dev -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+        
+        if [ -n "$CANARY_POD" ]; then
+          echo "🐦 Found canary pod: $CANARY_POD"
+          
+          # Test health endpoint
+          if kubectl exec $CANARY_POD -n dev -- curl -f http://localhost:8080/actuator/health; then
+            echo "✅ Canary health check passed"
+          else
+            echo "❌ Canary health check failed"
+            kubectl logs $CANARY_POD -n dev --tail=50
+            exit 1
+          fi
+        else
+          echo "❌ No canary pods found"
+          exit 1
+        fi
+
+    - name: 📊 Monitor Canary
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "📊 Monitoring canary deployment for 2 minutes..."
+        
+        # Monitor for 2 minutes
+        for i in {1..12}; do
+          echo "⏱️ Check $i/12 ($(date))"
+          
+          # Check pod status
+          kubectl get pods -l app=$SERVICE-canary -n dev
+          
+          # Check if pods are ready
+          READY_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}' | wc -w)
+          TOTAL_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev -o jsonpath='{.items[*].metadata.name}' | wc -w)
+          
+          echo "📈 Ready pods: $READY_PODS/$TOTAL_PODS"
+          
+          if [ "$READY_PODS" -eq "$TOTAL_PODS" ] && [ "$TOTAL_PODS" -gt 0 ]; then
+            echo "✅ All canary pods are ready"
+          else
+            echo "⚠️ Some canary pods are not ready"
+          fi
+          
+          sleep 10
+        done
+        
+        echo "✅ Canary monitoring completed"
+
+    - name: 🧹 Cleanup Canary (Always Run)
+      if: always()
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🧹 Cleaning up canary deployment..."
+        
+        # Remove canary deployment
+        if kubectl get deployment/$SERVICE-canary -n dev >/dev/null 2>&1; then
+          kubectl delete deployment/$SERVICE-canary -n dev
+          echo "✅ Canary deployment removed"
+        else
+          echo "ℹ️ No canary deployment to remove"
+        fi
+        
+        # Scale main deployment back to original size
+        ORIGINAL_REPLICAS=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "2")
+        kubectl scale deployment $SERVICE --replicas=$ORIGINAL_REPLICAS -n dev
+        
+        echo "✅ Cleanup completed"
