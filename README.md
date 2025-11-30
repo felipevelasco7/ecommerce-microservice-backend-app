@@ -258,8 +258,8 @@ kubectl port-forward -n dev svc/frontend 3000:80
 - **👨‍💻 Desarrollador:** Felipe Velasco
 - **🏫 Universidad:** Icesi - Cali, Colombia  
 - **📚 Curso:** Plataformas Computacionales 2
-- **📧 Email:** [felipe.velasco@correo.icesi.edu.co](mailto:felipe.velasco@correo.icesi.edu.co)
-- **🔗 GitHub:** [SelimHorri/ecommerce-microservice-backend-app](https://github.com/felipevelasco7/ecommerce-microservice-backend-app)
+- **📧 Email:** [felipe.velasco@u.icesi.edu.co](mailto:felipe.velasco@u.icesi.edu.co)
+- **🔗 GitHub:** [Felipevelasco7/ecommerce-microservice-backend-app](https://github.com/felipevelasco7/ecommerce-microservice-backend-app)
 - **📅 Fecha:** Noviembre 2024
 
 

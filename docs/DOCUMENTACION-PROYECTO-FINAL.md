@@ -80,8 +80,8 @@ kubectl get namespaces
 kubectl get pods -n dev
 kubectl get svc -n dev
 ```
-![nodes, ns, pods, svc](/ecommerce-microservice-backend-app/capturas/1.1.png)
-![nodes, ns, pods, svc](/ecommerce-microservice-backend-app/capturas/1.png)
+![nodes, ns, pods, svc](/ecommerce-microservice-backend-app/assets/screenshots/capturas/1.1.png)
+![nodes, ns, pods, svc](/ecommerce-microservice-backend-app/assets/screenshots/capturas/1.png)
 
 ### 🏗️ **Namespaces y Organización**
 
@@ -167,7 +167,7 @@ kubectl get networkpolicy -n dev
 kubectl describe networkpolicy default-deny-ingress -n dev
 kubectl describe networkpolicy allow-from-api-gateway -n dev
 ```
-![network policies](/ecommerce-microservice-backend-app/capturas/networkpolicy1.png)
+![network policies](/ecommerce-microservice-backend-app/assets/screenshots/networkpolicy1.png)
 
 
 ### 🔐 **Security Implementation**
@@ -251,14 +251,14 @@ Funcionalidades implementadas:
 
 #### **Evidencia:**
 ```bash
-# Capturas requeridas:
+# assets/screenshots/ requeridas:
 kubectl get configmaps -n dev
 kubectl get pods -n sealed-secrets
 kubectl get secrets -n dev
 kubectl describe pod sealed-secrets-controller -n sealed-secrets
 ```
-![configmaps](/ecommerce-microservice-backend-app/capturas/configmap-secrets.png)
-![configmaps](/ecommerce-microservice-backend-app/capturas/secrets.png)
+![configmaps](/ecommerce-microservice-backend-app/assets/screenshots/capturas/configmap-secrets.png)
+![configmaps](/ecommerce-microservice-backend-app/assets/screenshots/capturas/secrets.png)
 
 
 ### 🏢 **Configuración Centralizada**
@@ -330,7 +330,7 @@ kubectl describe pod sealed-secrets-controller -n sealed-secrets
 
 #### **Evidencia requerida:**
 ```bash
-# Capturas de los pipelines:
+# assets/screenshots/capturas de los pipelines:
 # 1. GitHub Actions dashboard: https://github.com/felipevelasco7/ecommerce-microservice-backend-app/actions
 # 2. Screenshot de pipelines exitosos por servicio
 # 3. Screenshot del security compliance pipeline
@@ -338,7 +338,7 @@ kubectl describe pod sealed-secrets-controller -n sealed-secrets
 helm list -A
 kubectl get deployments -n dev
 ```
-![helm](/ecommerce-microservice-backend-app/capturas/helm-y-pods.png)
+![helm](/ecommerce-microservice-backend-app/assets/screenshots/capturas/helm-y-pods.png)
 
 ---
 
@@ -369,11 +369,11 @@ kubectl get deployments -n dev
 
 #### **Evidencia:**
 ```bash
-# Capturas requeridas:
+# assets/screenshots/capturas requeridas:
 kubectl get pv,pvc -A
 kubectl get storageclass -n dev
 ```
-![storage](/ecommerce-microservice-backend-app/capturas/storageclass-pv,pvc.png)
+![storage](/ecommerce-microservice-backend-app/assets/screenshots/capturas/storageclass-pv,pvc.png)
 
 ---
 
@@ -472,8 +472,8 @@ kubectl port-forward -n monitoring svc/prometheus 9090:9090
 kubectl port-forward -n dev svc/zipkin 9411:9411
 # Tomar screenshots de cada interfaz
 ```
-![monitoreo](/ecommerce-microservice-backend-app/capturas/monitoring.png)
-![monitoreo](/ecommerce-microservice-backend-app/capturas/observabilidad.png)
+![monitoreo](/ecommerce-microservice-backend-app/assets/screenshots/capturas/monitoring.png)
+![monitoreo](/ecommerce-microservice-backend-app/assets/screenshots/capturas/observabilidad.png)
 
 
 ---
@@ -532,7 +532,7 @@ kubectl top nodes
 kubectl get pods -n dev -w
 # 3. Tomar screenshots del scaling automático
 ```
-![autoscaling](/ecommerce-microservice-backend-app/capturas/autoscaling.png)
+![autoscaling](/ecommerce-microservice-backend-app/assets/screenshots/capturas/autoscaling.png)
 
 
 ---
