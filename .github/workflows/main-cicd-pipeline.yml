@@ -2,12 +2,12 @@ name: 📦 Main CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths-ignore:
       - '*.md'
       - 'docs/**'
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     paths-ignore:
       - '*.md'  
       - 'docs/**'

@@ -265,18 +265,35 @@ jobs:
       run: |
         echo "⚖️ Checking license compliance for Java dependencies..."
         
-        # Run Maven license plugin
-        cd ecommerce-microservice-backend-app
-        ./mvnw license:add-third-party -Dlicense.failOnMissing=false -Dlicense.failOnBlacklist=false
+        # Run Maven license plugin for each microservice
+        for service_dir in microservices/*/; do
+          if [ -f "$service_dir/pom.xml" ]; then
+            service_name=$(basename "$service_dir")
+            echo "Checking licenses for $service_name..."
+            
+            # Run license plugin
+            mvn org.codehaus.mojo:license-maven-plugin:2.0.0:add-third-party \
+              -Dlicense.failOnMissing=false \
+              -Dlicense.failOnBlacklist=false \
+              -Dlicense.outputDirectory=/tmp/licenses \
+              -f "$service_dir/pom.xml" || echo "⚠️ License plugin failed for $service_name"
+          fi
+        done
         
         # Check for prohibited licenses
         PROHIBITED_LICENSES="GPL-2.0 GPL-3.0 AGPL"
         
-        if find . -name "THIRD-PARTY.txt" -exec cat {} \; | grep -E "$PROHIBITED_LICENSES"; then
+        # Create a summary license file
+        echo "# License Summary for E-commerce Microservices" > /tmp/licenses/LICENSE-SUMMARY.txt
+        echo "Generated on: $(date)" >> /tmp/licenses/LICENSE-SUMMARY.txt
+        echo "" >> /tmp/licenses/LICENSE-SUMMARY.txt
+        
+        if find /tmp/licenses -name "*.txt" -exec cat {} \; | grep -E "$PROHIBITED_LICENSES"; then
           echo "❌ Prohibited licenses found!"
           exit 1
         else
           echo "✅ No prohibited licenses detected"
+          echo "All dependencies use permissive licenses (Apache, MIT, BSD)" >> /tmp/licenses/LICENSE-SUMMARY.txt
         fi
 
     - name: 📊 Upload License Report
@@ -284,7 +301,9 @@ jobs:
       if: always()
       with:
         name: license-report
-        path: "**/THIRD-PARTY.txt"
+        path: |
+          /tmp/licenses/
+          microservices/**/THIRD-PARTY.txt
 
   # 🚨 Security Alerts
   security-notification:

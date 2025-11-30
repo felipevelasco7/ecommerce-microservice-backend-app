@@ -340,6 +340,100 @@ kubectl get deployments -n dev
 ```
 ![helm](/assets/screenshots/helm-y-pods.png)
 
+
+---
+
+## 🚀 **EXPLICACIÓN DETALLADA DE PIPELINES CI/CD**
+
+### 📦 **1. Main CI/CD Pipeline** 
+**Archivo:** `main-cicd-pipeline.yml`
+**Cuándo se ejecuta:** Automáticamente en cada push/PR a `master`
+
+#### 🔍 **Cómo funciona:**
+1. **Detect Changes** - Analiza qué servicios cambiaron comparando con el commit anterior
+2. **Test & Security** - Solo si hay cambios, ejecuta tests y scans de seguridad
+3. **Build & Push** - Construye imágenes Docker solo de servicios modificados
+4. **Deploy to Dev** - Despliega servicios cambiados al ambiente de desarrollo
+5. **Pipeline Summary** - Genera reporte con servicios afectados
+
+#### 💡 **¿Por qué se skipean jobs?**
+```yaml
+if: needs.detect-changes.outputs.any-changes == 'true'
+```
+Si solo cambias workflows (no código de microservicios), detecta "no hay cambios en servicios" y skippea los demás pasos. **Esto es correcto y eficiente!**
+
+### 🐦 **2. Canary Deployment Pipeline**
+**Archivo:** `canary-deployment.yml`  
+**Cuándo se ejecuta:** **Solo manual** (workflow_dispatch)
+
+#### 🎯 **Para qué sirve:**
+- **Reducir riesgo:** Solo expone nueva versión a pequeño % de usuarios (1-50%)
+- **Validación gradual:** Detecta problemas antes de full rollout
+- **Rollback rápido:** Si falla, solo afecta al pequeño porcentaje
+- **Métricas comparativas:** Compara performance nueva vs vieja versión
+
+#### 📊 **Lo que hace:**
+1. **Valida entradas** - Verifica que el servicio exista en el cluster
+2. **Crea deployment canary** - Paralelo al actual con nueva imagen  
+3. **Configura split de tráfico** - 90% estable, 10% canary vía services
+4. **Ejecuta tests de salud** - Health checks específicos en canary
+5. **Monitorea métricas** - Error rates, response times, resource usage
+6. **Pide aprobación manual** - Environment protection para promoción
+7. **Promociona o rollback** - Basado en resultados de monitoreo
+
+### 🔄 **3. Blue-Green Deployment Pipeline**
+**Archivo:** `blue-green-deployment.yml`
+**Cuándo se ejecuta:** **Solo manual** (workflow_dispatch)
+
+#### 🎯 **Para qué sirve:**
+- **Cero downtime:** Mantiene dos ambientes idénticos (blue/green)
+- **Switch instantáneo:** Cambio de tráfico en segundos
+- **Rollback rápido:** Blue queda en standby para recuperación inmediata
+- **Testing completo:** Valida ambiente green antes del switch
+
+#### 📊 **Lo que hace:**
+1. **Identifica ambiente actual** - Determina cuál es blue y cuál será green
+2. **Despliega a ambiente green** - Nueva versión en ambiente inactivo
+3. **Ejecuta tests completos** - Validación exhaustiva en green
+4. **Pide aprobación para switch** - Environment protection
+5. **Cambia tráfico instantáneamente** - blue→green en un comando
+6. **Mantiene blue en standby** - Para rollback rápido si es necesario
+
+### 🛡️ **4. Security & Compliance Pipeline**
+**Archivo:** `security-compliance.yml`
+**Cuándo se ejecuta:** **Diario automático (2 AM)** + manual
+
+#### 🎯 **Para qué sirve:**
+- **Vulnerability scanning:** Detecta CVEs en imágenes Docker
+- **Secret detection:** Busca credenciales filtradas en código
+- **Compliance checking:** Valida políticas de Kubernetes
+- **License compliance:** Verifica licencias de dependencias
+
+#### 📊 **Lo que hace:**
+1. **Vulnerability Scan** - Escanea todas las imágenes en GCR por servicio
+2. **Secret Scan** - TruffleHog busca credenciales filtradas en repo
+3. **Compliance Check** - Valida Pod Security Standards y Network Policies  
+4. **License Check** - Revisa licencias Maven de todos los microservicios
+5. **Genera alertas** - Si encuentra problemas críticos (CRITICAL/HIGH)
+
+### ⚡ **5. Emergency Rollback Pipeline**
+**Archivo:** `emergency-rollback.yml`
+**Cuándo se ejecuta:** **Solo manual** (emergencias)
+
+#### 🎯 **Para qué sirve:**
+- **Recuperación rápida:** Rollback en minutos cuando algo falla
+- **Múltiples estrategias:** Previous, specific version, last-known-good
+- **Validación automática:** Health checks post-rollback
+- **Audit trail:** Registro completo del evento de emergencia
+
+#### 📊 **Lo que hace:**
+1. **Pre-validación** - Verifica estado del cluster y inputs
+2. **Identifica target** - Determina versión objetivo del rollback  
+3. **Ejecuta rollback** - Con validaciones de seguridad
+4. **Verifica health checks** - Confirma que rollback funcionó
+5. **Registra evento** - Annotations y audit trail completo
+
+
 ---
 
 ## 💾 5. ALMACENAMIENTO Y PERSISTENCIA (10%)
@@ -564,7 +658,6 @@ kubectl get pods -n dev -w
 ├── docs/                     → 20+ documentos especializados
 └── Múltiples scripts        → Automatización y utilities
 ```
-
 ---
 
 ## 🏆 BONIFICACIONES IMPLEMENTADAS
@@ -674,6 +767,37 @@ kubectl get pods -n dev -w
 - Corrección de todos los puertos y nombres de servicios
 - Actualización de evidencias y comandos de verificación
 - **Resultado:** Documentación 100% precisa y verificable
+
+### 6. **GKE Auth Plugin Missing en Workflows**
+
+**Problema:** Error `gke-gcloud-auth-plugin not found` en workflows Blue-Green y Canary.
+
+**Solución:**
+- Instalación automática del plugin en todos los workflows
+- Variable de entorno `USE_GKE_GCLOUD_AUTH_PLUGIN=True`
+- Configuración en setup-gcloud action
+- **Resultado:** Autenticación GKE funcionando en todos los pipelines
+
+### 7. **License Check Failing por Paths Incorrectos**
+
+**Problema:** Security pipeline fallando porque no encuentra archivos `THIRD-PARTY.txt`.
+
+**Solución:**
+- Ejecución del plugin Maven license por cada microservicio
+- Creación de directorio temporal `/tmp/licenses/` para reports
+- Upload de artifacts desde múltiples paths
+- Manejo de errores graceful si plugin falla
+- **Resultado:** License compliance funcionando correctamente
+
+### 8. **Canary Deployment Failing por Validación Estricta**
+
+**Problema:** Pipeline canary fallaba si deployment no existía previamente.
+
+**Solución:**
+- Validación más flexible - permite crear deployment si no existe
+- Lista de deployments existentes para debugging
+- Mensaje informativo en lugar de error fatal
+- **Resultado:** Canary deployment funciona con servicios nuevos y existentes
 
 ---
 

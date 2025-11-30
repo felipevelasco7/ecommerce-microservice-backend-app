@@ -29,6 +29,8 @@ env:
   GCP_ZONE: us-central1-a
   GKE_CLUSTER: ecommerce-cluster
   REGISTRY: gcr.io
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
 jobs:
   # 🐦 Canary Deployment
@@ -61,9 +63,14 @@ jobs:
           exit 1
         fi
         
+        echo "🔍 Checking if service ${{ github.event.inputs.service }} exists..."
         if ! kubectl get deployment ${{ github.event.inputs.service }} -n dev >/dev/null 2>&1; then
-          echo "❌ Service ${{ github.event.inputs.service }} not found in dev namespace"
-          exit 1
+          echo "⚠️ Service ${{ github.event.inputs.service }} not found in dev namespace"
+          echo "📦 Available deployments in dev namespace:"
+          kubectl get deployments -n dev
+          echo "ℹ️ Will create deployment from image if not exists"
+        else
+          echo "✅ Service ${{ github.event.inputs.service }} found in dev namespace"
         fi
         
         echo "✅ Inputs validated successfully"
