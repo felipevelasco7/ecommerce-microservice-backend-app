@@ -550,25 +550,14 @@ kubectl get pods -n dev -w
 ├── DEPLOYMENT-GUIDE.md               → Guías específicas de despliegue
 ├── MANUAL-OPERACIONES.md             → Manual de operaciones
 ├── TESTING-GUIDE.md                  → Guía de testing y validación
-└── Múltiples guías especializadas    → 20+ documentos de soporte
-```
-
-### 🎥 **Material de Presentación**
-
-```
-📁 Presentation materials:
-├── Screenshots del proyecto funcionando
-├── Evidencias de pipelines ejecutándose
-├── Dashboards de Grafana configurados
-├── Resultados de pruebas de rendimiento
-└── Demostraciones de autoscaling
+└── Múltiples guías especializadas    → documentos de soporte
 ```
 
 ### 🔄 **Repository Organization**
 
 ```
 📁 Repository structure:
-├── .github/workflows/         → 66+ CI/CD pipelines
+├── .github/workflows/         →CI/CD pipelines
 ├── k8s/                      → Kubernetes manifests organizados
 ├── helm/                     → Helm charts
 ├── [servicio]/               → Código fuente por microservicio
