@@ -104,20 +104,38 @@ jobs:
         IMAGE_FULL_PATH="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG"
         echo "🏗️ Creating canary deployment with image: $IMAGE_FULL_PATH"
         
-        # Get existing deployment and modify it for canary
-        kubectl get deployment $SERVICE -n dev -o yaml > /tmp/base-deployment.yaml
+        # Create canary deployment using kubectl create (simpler approach)
+        kubectl create deployment $SERVICE-canary -n dev --image="$IMAGE_FULL_PATH" --replicas=$CANARY_REPLICAS --dry-run=client -o yaml | \
+        kubectl apply -f -
         
-        # Create canary version by modifying the base deployment
-        sed 's/name: '$SERVICE'/name: '$SERVICE'-canary/g' /tmp/base-deployment.yaml > /tmp/canary-deployment.yaml
-        sed -i 's/app: '$SERVICE'/app: '$SERVICE'-canary/g' /tmp/canary-deployment.yaml
-        sed -i 's/replicas: [0-9]*/replicas: '$CANARY_REPLICAS'/g' /tmp/canary-deployment.yaml
-        sed -i 's|image: .*|image: '$IMAGE_FULL_PATH'|g' /tmp/canary-deployment.yaml
+        # Copy resource limits and probes from original deployment if they exist
+        echo "🔧 Copying configuration from main deployment..."
         
-        # Remove resourceVersion and other fields that should not be copied
-        grep -v "resourceVersion\|uid\|selfLink\|creationTimestamp\|generation\|status:" /tmp/canary-deployment.yaml > /tmp/clean-canary.yaml
+        # Get resource limits from main deployment 
+        MAIN_RESOURCES=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.template.spec.containers[0].resources}' 2>/dev/null || echo '{}')
         
-        # Apply the canary deployment
-        kubectl apply -f /tmp/clean-canary.yaml
+        if [ "$MAIN_RESOURCES" != "{}" ] && [ "$MAIN_RESOURCES" != "null" ]; then
+          echo "📊 Found resource configuration in main deployment, applying to canary..."
+          kubectl patch deployment $SERVICE-canary -n dev --type='merge' --patch='{
+            "spec": {
+              "template": {
+                "spec": {
+                  "containers": [
+                    {
+                      "name": "'$SERVICE-canary'",
+                      "resources": {
+                        "requests": {"memory": "256Mi", "cpu": "100m"},
+                        "limits": {"memory": "512Mi", "cpu": "500m"}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }'
+        else
+          echo "ℹ️ No resource limits found in main deployment, using defaults for canary"
+        fi
         
         echo "✅ Canary deployment created successfully"
         
