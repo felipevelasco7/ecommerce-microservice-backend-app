@@ -100,38 +100,26 @@ jobs:
         # Scale down main deployment temporarily
         kubectl scale deployment $SERVICE --replicas=$STABLE_REPLICAS -n dev
         
-        # Create canary deployment using kubectl directly (no heredoc)
-        kubectl create deployment $SERVICE-canary --image=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG --replicas=$CANARY_REPLICAS -n dev --dry-run=client -o yaml > /tmp/canary-base.yaml
+        # Create canary deployment by copying existing deployment and modifying
+        IMAGE_FULL_PATH="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG"
+        echo "🏗️ Creating canary deployment with image: $IMAGE_FULL_PATH"
         
-        # Apply base deployment
-        kubectl apply -f /tmp/canary-base.yaml
+        # Get existing deployment and modify it for canary
+        kubectl get deployment $SERVICE -n dev -o yaml > /tmp/base-deployment.yaml
         
-        # Add health checks and resource limits via patch
-        kubectl patch deployment $SERVICE-canary -n dev --type='merge' -p='{
-          "spec": {
-            "template": {
-              "spec": {
-                "containers": [{
-                  "name": "'$SERVICE'",
-                  "resources": {
-                    "requests": {"memory": "256Mi", "cpu": "100m"},
-                    "limits": {"memory": "512Mi", "cpu": "500m"}
-                  },
-                  "livenessProbe": {
-                    "httpGet": {"path": "/actuator/health", "port": 8080},
-                    "initialDelaySeconds": 60,
-                    "periodSeconds": 30
-                  },
-                  "readinessProbe": {
-                    "httpGet": {"path": "/actuator/health", "port": 8080},
-                    "initialDelaySeconds": 30,
-                    "periodSeconds": 10
-                  }
-                }]
-              }
-            }
-          }
-        }'
+        # Create canary version by modifying the base deployment
+        sed 's/name: '$SERVICE'/name: '$SERVICE'-canary/g' /tmp/base-deployment.yaml > /tmp/canary-deployment.yaml
+        sed -i 's/app: '$SERVICE'/app: '$SERVICE'-canary/g' /tmp/canary-deployment.yaml
+        sed -i 's/replicas: [0-9]*/replicas: '$CANARY_REPLICAS'/g' /tmp/canary-deployment.yaml
+        sed -i 's|image: .*|image: '$IMAGE_FULL_PATH'|g' /tmp/canary-deployment.yaml
+        
+        # Remove resourceVersion and other fields that should not be copied
+        grep -v "resourceVersion\|uid\|selfLink\|creationTimestamp\|generation\|status:" /tmp/canary-deployment.yaml > /tmp/clean-canary.yaml
+        
+        # Apply the canary deployment
+        kubectl apply -f /tmp/clean-canary.yaml
+        
+        echo "✅ Canary deployment created successfully"
         
         # Check if canary deployment was created successfully
         if kubectl get deployment/$SERVICE-canary -n dev >/dev/null 2>&1; then
