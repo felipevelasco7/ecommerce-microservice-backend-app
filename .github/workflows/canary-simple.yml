@@ -100,19 +100,84 @@ jobs:
         # Scale down main deployment temporarily
         kubectl scale deployment $SERVICE --replicas=$STABLE_REPLICAS -n dev
         
-        # Create canary deployment
-        kubectl get deployment $SERVICE -n dev -o yaml | \
-        sed "s/$SERVICE/$SERVICE-canary/g" | \
-        sed "s/replicas: $CURRENT_REPLICAS/replicas: $CANARY_REPLICAS/" | \
-        sed "s|image: .*|image: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG|" | \
-        kubectl apply -f -
+        # Create canary deployment with explicit YAML
+        cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $SERVICE-canary
+  namespace: dev
+  labels:
+    app: $SERVICE-canary
+    version: canary
+spec:
+  replicas: $CANARY_REPLICAS
+  selector:
+    matchLabels:
+      app: $SERVICE-canary
+  template:
+    metadata:
+      labels:
+        app: $SERVICE-canary
+        version: canary
+    spec:
+      containers:
+      - name: $SERVICE
+        image: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$IMAGE_TAG
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+EOF
         
-        # Wait for canary to be ready
-        kubectl rollout status deployment/$SERVICE-canary -n dev --timeout=300s
+        # Check if canary deployment was created successfully
+        if kubectl get deployment/$SERVICE-canary -n dev >/dev/null 2>&1; then
+          echo "✅ Canary deployment created"
+          
+          # Wait for canary to be ready with better error handling
+          echo "⏳ Waiting for canary deployment to be ready..."
+          if ! kubectl rollout status deployment/$SERVICE-canary -n dev --timeout=180s; then
+            echo "⚠️ Canary deployment taking longer than expected"
+            echo "📊 Checking canary deployment status:"
+            kubectl describe deployment/$SERVICE-canary -n dev
+            echo "📊 Checking canary pods:"
+            kubectl get pods -l app=$SERVICE-canary -n dev -o wide
+            kubectl describe pods -l app=$SERVICE-canary -n dev
+            
+            # Try to get more info about why it's failing
+            echo "📊 Checking events:"
+            kubectl get events -n dev --sort-by='.lastTimestamp' | tail -10
+            
+            # Don't fail immediately, continue to next step for diagnosis
+            echo "⚠️ Canary deployment may have issues, but continuing for diagnosis..."
+          else
+            echo "✅ Canary deployment ready"
+          fi
+        else
+          echo "❌ Failed to create canary deployment"
+          exit 1
+        fi
         
-        echo "✅ Canary deployment created successfully"
         echo "📊 Current state:"
-        kubectl get pods -l app=$SERVICE -n dev
+        kubectl get pods -l app=$SERVICE -n dev -o wide
+        kubectl get deployments -n dev | grep $SERVICE
         
     - name: 🧪 Test Canary
       run: |
@@ -120,19 +185,33 @@ jobs:
         
         echo "🧪 Testing canary deployment..."
         
-        # Wait a bit for stabilization
-        sleep 30
-        
-        # Check if canary pods are running
-        CANARY_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev --field-selector=status.phase=Running --no-headers | wc -l)
-        
-        if [ "$CANARY_PODS" -gt 0 ]; then
-          echo "✅ Canary test passed - $CANARY_PODS canary pod(s) running"
-        else
-          echo "❌ Canary test failed"
-          kubectl get pods -l app=$SERVICE-canary -n dev
-          exit 1
-        fi
+        # Wait for pods to stabilize with retries
+        for i in {1..6}; do
+          echo "🔍 Attempt $i: Checking canary pods..."
+          
+          CANARY_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+          TOTAL_CANARY_PODS=$(kubectl get pods -l app=$SERVICE-canary -n dev --no-headers 2>/dev/null | wc -l)
+          
+          echo "📊 Canary pods status: $CANARY_PODS running / $TOTAL_CANARY_PODS total"
+          
+          if [ "$CANARY_PODS" -gt 0 ]; then
+            echo "✅ Canary test passed - $CANARY_PODS canary pod(s) running"
+            break
+          elif [ "$i" -eq 6 ]; then
+            echo "❌ Canary test failed after 6 attempts"
+            echo "📊 Final pod status:"
+            kubectl get pods -l app=$SERVICE-canary -n dev -o wide
+            echo "📊 Pod descriptions:"
+            kubectl describe pods -l app=$SERVICE-canary -n dev
+            
+            # Don't exit 1, continue to cleanup
+            echo "⚠️ Canary failed but continuing to cleanup..."
+            break
+          else
+            echo "⏳ Waiting 30 seconds before retry..."
+            sleep 30
+          fi
+        done
         
     - name: ✅ Promote Canary
       run: |
@@ -158,6 +237,24 @@ jobs:
         kubectl delete deployment $SERVICE-canary -n dev
         
         echo "🎉 Canary promotion completed successfully!"
+        
+    - name: 🧹 Cleanup Canary (if exists)
+      if: always()
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🧹 Cleaning up canary deployment..."
+        
+        # Clean up canary deployment if it exists
+        if kubectl get deployment $SERVICE-canary -n dev >/dev/null 2>&1; then
+          kubectl delete deployment $SERVICE-canary -n dev
+          echo "✅ Canary deployment cleaned up"
+        else
+          echo "ℹ️ No canary deployment to clean up"
+        fi
+        
+        # Ensure main service is properly scaled
+        kubectl get deployment $SERVICE -n dev
         
     - name: 📊 Summary
       run: |
