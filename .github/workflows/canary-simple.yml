@@ -108,34 +108,13 @@ jobs:
         kubectl create deployment $SERVICE-canary -n dev --image="$IMAGE_FULL_PATH" --replicas=$CANARY_REPLICAS --dry-run=client -o yaml | \
         kubectl apply -f -
         
-        # Copy resource limits and probes from original deployment if they exist
-        echo "🔧 Copying configuration from main deployment..."
+        # Add resource limits using kubectl set resources (simpler and safer)
+        echo "🔧 Adding resource limits to canary deployment..."
+        kubectl set resources deployment/$SERVICE-canary -n dev \
+          --requests=memory=256Mi,cpu=100m \
+          --limits=memory=512Mi,cpu=500m
         
-        # Get resource limits from main deployment 
-        MAIN_RESOURCES=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.template.spec.containers[0].resources}' 2>/dev/null || echo '{}')
-        
-        if [ "$MAIN_RESOURCES" != "{}" ] && [ "$MAIN_RESOURCES" != "null" ]; then
-          echo "📊 Found resource configuration in main deployment, applying to canary..."
-          kubectl patch deployment $SERVICE-canary -n dev --type='merge' --patch='{
-            "spec": {
-              "template": {
-                "spec": {
-                  "containers": [
-                    {
-                      "name": "'$SERVICE-canary'",
-                      "resources": {
-                        "requests": {"memory": "256Mi", "cpu": "100m"},
-                        "limits": {"memory": "512Mi", "cpu": "500m"}
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }'
-        else
-          echo "ℹ️ No resource limits found in main deployment, using defaults for canary"
-        fi
+        echo "✅ Canary deployment created and configured successfully"
         
         echo "✅ Canary deployment created successfully"
         
