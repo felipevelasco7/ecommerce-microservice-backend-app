@@ -48,6 +48,8 @@ jobs:
         
     - name: 🛠️ Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
       
     - name: ⚙️ Get GKE Credentials
       run: |
@@ -201,6 +203,8 @@ jobs:
         
     - name: 🛠️ Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
       
     - name: ⚙️ Get GKE Credentials
       run: |
