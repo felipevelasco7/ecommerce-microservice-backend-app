@@ -1,0 +1,444 @@
+name: Blue-Green Deployment Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Critical service for blue-green deployment'
+        required: true
+        type: choice
+        options:
+        - api-gateway
+        - user-service
+        - payment-service
+        - order-service
+      image_tag:
+        description: 'Image tag for green deployment'
+        required: true
+        default: 'latest'
+      auto_switch:
+        description: 'Automatically switch traffic after validation'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+
+jobs:
+  deploy-green:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Prepare Blue Environment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔵 Preparing Blue environment (current production)..."
+        
+        # Label current deployment as "blue"
+        kubectl patch deployment $SERVICE -n dev -p '{"spec":{"template":{"metadata":{"labels":{"version":"blue","deployment":"blue-green"}}}}}'
+        
+        # Ensure blue deployment is stable
+        kubectl rollout status deployment/$SERVICE -n dev --timeout=300s
+        
+        echo "✅ Blue environment ready"
+        
+    - name: Deploy Green Environment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:${IMAGE_TAG}"
+        
+        echo "🟢 Deploying Green environment..."
+        
+        # Get current deployment spec
+        kubectl get deployment $SERVICE -n dev -o yaml > /tmp/blue-deployment.yaml
+        
+        # Create green deployment
+        sed "s/name: $SERVICE/name: ${SERVICE}-green/g" /tmp/blue-deployment.yaml | \
+        sed "s/app: $SERVICE/app: $SERVICE/g" | \
+        sed "s/version: blue/version: green/g" | \
+        sed "s|image: .*|image: $IMAGE|g" | \
+        kubectl apply -f -
+        
+        # Update selector for green deployment
+        kubectl patch deployment ${SERVICE}-green -n dev -p '{
+          "spec": {
+            "selector": {
+              "matchLabels": {
+                "app": "'$SERVICE'",
+                "version": "green"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "'$SERVICE'",
+                  "version": "green",
+                  "deployment": "blue-green"
+                }
+              }
+            }
+          }
+        }'
+        
+        # Wait for green deployment to be ready
+        kubectl rollout status deployment/${SERVICE}-green -n dev --timeout=300s
+        
+        echo "✅ Green environment deployed"
+        
+    - name: Validate Green Environment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔍 Validating Green environment..."
+        
+        # Check deployment health
+        GREEN_READY=$(kubectl get deployment ${SERVICE}-green -n dev -o jsonpath='{.status.readyReplicas}')
+        GREEN_DESIRED=$(kubectl get deployment ${SERVICE}-green -n dev -o jsonpath='{.spec.replicas}')
+        
+        if [[ "$GREEN_READY" != "$GREEN_DESIRED" ]]; then
+          echo "❌ Green deployment not ready: $GREEN_READY/$GREEN_DESIRED"
+          exit 1
+        fi
+        
+        # Create temporary service for testing green
+        kubectl expose deployment ${SERVICE}-green -n dev --name=${SERVICE}-green-test --port=80 --target-port=8080 --type=ClusterIP
+        
+        # Wait a bit for service to be ready
+        sleep 30
+        
+        # Test green deployment
+        echo "Testing green deployment health..."
+        kubectl port-forward svc/${SERVICE}-green-test -n dev 8080:80 &
+        PF_PID=$!
+        sleep 10
+        
+        # Run health checks
+        HEALTH_CHECK_PASSED=false
+        for i in {1..5}; do
+          if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+            echo "✅ Green health check $i/5 passed"
+            HEALTH_CHECK_PASSED=true
+          else
+            echo "⚠️ Green health check $i/5 failed, retrying..."
+            sleep 10
+          fi
+        done
+        
+        kill $PF_PID
+        
+        if [[ "$HEALTH_CHECK_PASSED" != "true" ]]; then
+          echo "❌ Green environment failed health checks"
+          exit 1
+        fi
+        
+        # Cleanup test service
+        kubectl delete svc ${SERVICE}-green-test -n dev
+        
+        echo "✅ Green environment validation completed"
+        
+    - name: Run Integration Tests on Green
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🧪 Running integration tests on Green environment..."
+        
+        # Create temporary service for testing
+        kubectl expose deployment ${SERVICE}-green -n dev --name=${SERVICE}-green-test --port=80 --target-port=8080
+        
+        kubectl port-forward svc/${SERVICE}-green-test -n dev 8080:80 &
+        PF_PID=$!
+        sleep 15
+        
+        # Service-specific integration tests
+        case $SERVICE in
+          "api-gateway")
+            echo "Testing API Gateway routes..."
+            curl -f http://localhost:8080/user-service/actuator/health || exit 1
+            curl -f http://localhost:8080/product-service/actuator/health || exit 1
+            ;;
+          "user-service")
+            echo "Testing User Service endpoints..."
+            curl -f http://localhost:8080/actuator/health || exit 1
+            # Test database connectivity
+            curl -f http://localhost:8080/actuator/db || echo "DB health not available"
+            ;;
+          "payment-service")
+            echo "Testing Payment Service..."
+            curl -f http://localhost:8080/actuator/health || exit 1
+            ;;
+          "order-service")
+            echo "Testing Order Service..."
+            curl -f http://localhost:8080/actuator/health || exit 1
+            ;;
+        esac
+        
+        kill $PF_PID
+        kubectl delete svc ${SERVICE}-green-test -n dev
+        
+        echo "✅ Integration tests passed on Green environment"
+        
+    - name: Performance Test Green
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "📊 Running performance tests on Green environment..."
+        
+        # Create test service
+        kubectl expose deployment ${SERVICE}-green -n dev --name=${SERVICE}-green-perf --port=80 --target-port=8080
+        
+        kubectl port-forward svc/${SERVICE}-green-perf -n dev 8080:80 &
+        PF_PID=$!
+        sleep 10
+        
+        # Simple performance test with curl
+        echo "Running load test (100 requests, concurrency 10)..."
+        
+        # Install apache2-utils for ab command
+        sudo apt-get update && sudo apt-get install -y apache2-utils
+        
+        # Run load test
+        if ab -n 100 -c 10 http://localhost:8080/actuator/health 2>&1 | tee perf-results.txt; then
+          echo "✅ Performance test completed"
+          
+          # Extract key metrics
+          REQUESTS_PER_SECOND=$(grep "Requests per second" perf-results.txt | awk '{print $4}')
+          MEAN_TIME=$(grep "Time per request" perf-results.txt | head -1 | awk '{print $4}')
+          
+          echo "📊 Performance Results:"
+          echo "  - Requests per second: $REQUESTS_PER_SECOND"
+          echo "  - Mean response time: ${MEAN_TIME}ms"
+          
+          # Basic performance validation (>10 RPS, <1000ms mean time)
+          if (( $(echo "$REQUESTS_PER_SECOND > 10" | bc -l) )) && (( $(echo "$MEAN_TIME < 1000" | bc -l) )); then
+            echo "✅ Performance criteria met"
+          else
+            echo "⚠️ Performance below expected thresholds"
+          fi
+        else
+          echo "⚠️ Performance test failed"
+        fi
+        
+        kill $PF_PID
+        kubectl delete svc ${SERVICE}-green-perf -n dev
+        
+    - name: Switch Traffic to Green
+      if: success() && (github.event.inputs.auto_switch == 'true')
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔀 Switching traffic to Green environment..."
+        
+        # Update service selector to point to green
+        kubectl patch svc $SERVICE -n dev -p '{
+          "spec": {
+            "selector": {
+              "app": "'$SERVICE'",
+              "version": "green"
+            }
+          }
+        }'
+        
+        echo "✅ Traffic switched to Green environment"
+        echo "🔵 Blue environment is now standby"
+        
+    - name: Verify Traffic Switch
+      if: success() && (github.event.inputs.auto_switch == 'true')
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔍 Verifying traffic switch..."
+        
+        # Wait for DNS/service updates to propagate
+        sleep 30
+        
+        # Test through the service
+        kubectl port-forward svc/$SERVICE -n dev 8080:80 &
+        PF_PID=$!
+        sleep 10
+        
+        # Verify we're hitting green pods
+        GREEN_PODS=$(kubectl get pods -l app=$SERVICE,version=green -n dev -o jsonpath='{.items[*].metadata.name}')
+        echo "Green pods: $GREEN_PODS"
+        
+        # Test service connectivity
+        for i in {1..5}; do
+          if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+            echo "✅ Traffic verification $i/5 passed"
+          else
+            echo "❌ Traffic verification $i/5 failed"
+            exit 1
+          fi
+          sleep 5
+        done
+        
+        kill $PF_PID
+        
+        echo "✅ Traffic switch verification completed"
+        
+    - name: Monitor Green Environment
+      if: success()
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "📊 Monitoring Green environment for 5 minutes..."
+        
+        for i in {1..10}; do
+          echo "Monitor cycle $i/10 (30s intervals)..."
+          
+          # Check pod health
+          GREEN_READY=$(kubectl get deployment ${SERVICE}-green -n dev -o jsonpath='{.status.readyReplicas}')
+          GREEN_DESIRED=$(kubectl get deployment ${SERVICE}-green -n dev -o jsonpath='{.spec.replicas}')
+          
+          if [[ "$GREEN_READY" == "$GREEN_DESIRED" ]]; then
+            echo "✅ Green deployment stable ($GREEN_READY/$GREEN_DESIRED)"
+          else
+            echo "⚠️ Green deployment unstable ($GREEN_READY/$GREEN_DESIRED)"
+          fi
+          
+          # Check for restarts or errors
+          RESTART_COUNT=$(kubectl get pods -l app=$SERVICE,version=green -n dev -o jsonpath='{.items[*].status.containerStatuses[0].restartCount}' | tr ' ' '+' | bc 2>/dev/null || echo 0)
+          echo "Total restarts: $RESTART_COUNT"
+          
+          sleep 30
+        done
+        
+        echo "✅ Monitoring completed - Green environment is stable"
+        
+    - name: Generate Deployment Report
+      if: always()
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        cat <<EOF > blue-green-report.txt
+        ==========================================
+        BLUE-GREEN DEPLOYMENT REPORT
+        ==========================================
+        Service: $SERVICE
+        Image Tag: ${{ github.event.inputs.image_tag }}
+        Auto Switch: ${{ github.event.inputs.auto_switch }}
+        Timestamp: $(date)
+        Status: ${{ job.status }}
+        
+        ===========================================
+        ENVIRONMENT STATUS
+        ===========================================
+        EOF
+        
+        echo "=== BLUE ENVIRONMENT ===" >> blue-green-report.txt
+        kubectl get deployment $SERVICE -n dev -o wide >> blue-green-report.txt 2>&1 || echo "Blue deployment not found" >> blue-green-report.txt
+        
+        echo "=== GREEN ENVIRONMENT ===" >> blue-green-report.txt
+        kubectl get deployment ${SERVICE}-green -n dev -o wide >> blue-green-report.txt 2>&1 || echo "Green deployment not found" >> blue-green-report.txt
+        
+        echo "=== SERVICE CONFIGURATION ===" >> blue-green-report.txt
+        kubectl get svc $SERVICE -n dev -o yaml >> blue-green-report.txt 2>&1
+        
+        echo "=== PODS STATUS ===" >> blue-green-report.txt
+        kubectl get pods -l app=$SERVICE -n dev -o wide >> blue-green-report.txt
+        
+        cat blue-green-report.txt
+        
+    - name: Upload Deployment Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: blue-green-report-${{ github.event.inputs.service }}-${{ github.run_number }}
+        path: blue-green-report.txt
+        retention-days: 30
+        
+    - name: Cleanup on Failure
+      if: failure()
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🧹 Cleaning up failed deployment..."
+        
+        # Remove green deployment
+        kubectl delete deployment ${SERVICE}-green -n dev || true
+        
+        # Ensure service points back to blue
+        kubectl patch svc $SERVICE -n dev -p '{
+          "spec": {
+            "selector": {
+              "app": "'$SERVICE'",
+              "version": "blue"
+            }
+          }
+        }' || true
+        
+        echo "✅ Cleanup completed"
+        
+    - name: Notify Deployment Status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          🔵🟢 Blue-Green Deployment ${{ job.status == 'success' && 'COMPLETED' || 'FAILED' }}
+          
+          Service: ${{ github.event.inputs.service }}
+          Image: ${{ github.event.inputs.image_tag }}
+          Auto Switch: ${{ github.event.inputs.auto_switch }}
+          
+          ${{ job.status == 'success' && github.event.inputs.auto_switch == 'true' && '✅ Traffic switched to Green' || '' }}
+          ${{ job.status == 'success' && github.event.inputs.auto_switch == 'false' && '✅ Green ready for manual switch' || '' }}
+          ${{ job.status != 'success' && '❌ Deployment failed - Blue environment preserved' || '' }}
+          
+          Report: Available in workflow artifacts
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Job separado para switch manual (si auto_switch=false)
+  manual-switch:
+    runs-on: ubuntu-latest
+    needs: deploy-green
+    if: success() && github.event.inputs.auto_switch == 'false'
+    environment: production-manual-approval
+    steps:
+    - name: Manual Approval Required
+      run: |
+        echo "🟢 Green environment is ready and validated"
+        echo "🔵 Blue environment is currently serving traffic"
+        echo "⏳ Waiting for manual approval to switch traffic..."
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Switch to Green
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+        echo "🔀 Manually switching traffic to Green..."
+        
+        kubectl patch svc $SERVICE -n dev -p '{
+          "spec": {
+            "selector": {
+              "app": "'$SERVICE'",
+              "version": "green"
+            }
+          }
+        }'
+        
+        echo "✅ Manual traffic switch completed"

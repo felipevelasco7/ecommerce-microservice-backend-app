@@ -1,0 +1,299 @@
+name: Emergency Rollback Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to rollback'
+        required: true
+        type: choice
+        options:
+        - all
+        - api-gateway
+        - user-service
+        - product-service
+        - payment-service
+        - order-service
+        - shipping-service
+        - favourite-service
+        - cloud-config
+        - service-discovery
+        - proxy-client
+      rollback_reason:
+        description: 'Reason for rollback'
+        required: true
+        default: 'Critical issue detected'
+
+env:
+  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+
+jobs:
+  emergency-rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Pre-rollback Health Check
+      run: |
+        echo "🚨 EMERGENCY ROLLBACK INITIATED"
+        echo "Reason: ${{ github.event.inputs.rollback_reason }}"
+        echo "Service: ${{ github.event.inputs.service }}"
+        echo "Time: $(date)"
+        
+        echo "📊 Current system status before rollback:"
+        kubectl get pods -n dev -o wide
+        kubectl get deployments -n dev
+        
+    - name: Execute Rollback
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        if [[ "$SERVICE" == "all" ]]; then
+          echo "🔄 Rolling back ALL services..."
+          SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
+        else
+          echo "🔄 Rolling back $SERVICE..."
+          SERVICES=($SERVICE)
+        fi
+        
+        # Capturar estado actual antes del rollback
+        echo "=== DEPLOYMENT HISTORY BEFORE ROLLBACK ===" > rollback-report.txt
+        for SVC in "${SERVICES[@]}"; do
+          echo "--- $SVC ---" >> rollback-report.txt
+          kubectl rollout history deployment/$SVC -n dev >> rollback-report.txt 2>&1 || echo "No history for $SVC" >> rollback-report.txt
+        done
+        
+        # Ejecutar rollback
+        for SVC in "${SERVICES[@]}"; do
+          echo "Rolling back $SVC..."
+          
+          # Parar cualquier canary deployment activo
+          kubectl delete deployment ${SVC}-canary -n dev >/dev/null 2>&1 || true
+          kubectl delete virtualservice ${SVC}-vs -n dev >/dev/null 2>&1 || true
+          kubectl delete destinationrule ${SVC}-dr -n dev >/dev/null 2>&1 || true
+          
+          # Rollback to previous version
+          if kubectl rollout undo deployment/$SVC -n dev; then
+            echo "✅ $SVC rollback initiated"
+            
+            # Wait for rollback to complete
+            if kubectl rollout status deployment/$SVC -n dev --timeout=300s; then
+              echo "✅ $SVC rollback completed successfully"
+            else
+              echo "❌ $SVC rollback failed or timed out"
+              kubectl describe deployment $SVC -n dev
+              kubectl get events -n dev | grep $SVC | tail -10
+            fi
+          else
+            echo "❌ Failed to initiate rollback for $SVC"
+          fi
+        done
+        
+    - name: Post-rollback Verification
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🔍 Post-rollback verification..."
+        
+        if [[ "$SERVICE" == "all" ]]; then
+          SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
+        else
+          SERVICES=($SERVICE)
+        fi
+        
+        echo "=== POST-ROLLBACK STATUS ===" >> rollback-report.txt
+        
+        for SVC in "${SERVICES[@]}"; do
+          echo "Verifying $SVC..."
+          
+          # Check deployment status
+          READY_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          DESIRED_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+          
+          echo "--- $SVC Verification ---" >> rollback-report.txt
+          echo "Ready: $READY_REPLICAS/$DESIRED_REPLICAS" >> rollback-report.txt
+          
+          if [[ "$READY_REPLICAS" == "$DESIRED_REPLICAS" ]] && [[ "$READY_REPLICAS" -gt "0" ]]; then
+            echo "✅ $SVC is healthy after rollback"
+          else
+            echo "❌ $SVC is not healthy after rollback"
+            kubectl describe deployment $SVC -n dev >> rollback-report.txt
+            kubectl get pods -l app=$SVC -n dev >> rollback-report.txt
+          fi
+          
+          # Test health endpoint if available
+          if kubectl get pods -l app=$SVC -n dev -o jsonpath='{.items[0].status.phase}' | grep -q "Running"; then
+            kubectl port-forward deployment/$SVC -n dev 8080:8080 &
+            PF_PID=$!
+            sleep 5
+            
+            if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "✅ $SVC health endpoint responding" >> rollback-report.txt
+            else
+              echo "⚠️ $SVC health endpoint not responding" >> rollback-report.txt
+            fi
+            
+            kill $PF_PID >/dev/null 2>&1 || true
+          fi
+        done
+        
+    - name: Generate Rollback Report
+      run: |
+        echo "📋 Generating rollback report..."
+        
+        cat <<EOF >> rollback-report.txt
+        
+        ===========================================
+        EMERGENCY ROLLBACK SUMMARY
+        ===========================================
+        Time: $(date)
+        Service(s): ${{ github.event.inputs.service }}
+        Reason: ${{ github.event.inputs.rollback_reason }}
+        Triggered by: ${{ github.actor }}
+        
+        ===========================================
+        FINAL SYSTEM STATUS
+        ===========================================
+        EOF
+        
+        kubectl get deployments -n dev -o wide >> rollback-report.txt
+        echo "" >> rollback-report.txt
+        kubectl get pods -n dev -o wide >> rollback-report.txt
+        
+        echo "Rollback report generated:"
+        cat rollback-report.txt
+        
+    - name: Upload Rollback Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: rollback-report-${{ github.run_number }}
+        path: rollback-report.txt
+        retention-days: 30
+        
+    - name: Validate Critical Services
+      run: |
+        echo "🔍 Validating critical services are operational..."
+        
+        CRITICAL_SERVICES=(api-gateway user-service service-discovery)
+        ALL_HEALTHY=true
+        
+        for SVC in "${CRITICAL_SERVICES[@]}"; do
+          READY_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          DESIRED_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+          
+          if [[ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]] || [[ "$READY_REPLICAS" == "0" ]]; then
+            echo "❌ Critical service $SVC is not healthy!"
+            ALL_HEALTHY=false
+          else
+            echo "✅ Critical service $SVC is healthy"
+          fi
+        done
+        
+        if [[ "$ALL_HEALTHY" == "false" ]]; then
+          echo "🚨 CRITICAL: Some services are still unhealthy after rollback!"
+          exit 1
+        fi
+        
+        echo "✅ All critical services are operational"
+        
+    - name: Test System Integration
+      run: |
+        echo "🔗 Testing basic system integration..."
+        
+        # Test service discovery
+        kubectl port-forward svc/service-discovery -n dev 8761:8761 &
+        SD_PID=$!
+        sleep 10
+        
+        REGISTERED_SERVICES=$(curl -s http://localhost:8761/eureka/apps | grep -o '<name>[^<]*</name>' | wc -l || echo "0")
+        kill $SD_PID
+        
+        if [[ $REGISTERED_SERVICES -gt 0 ]]; then
+          echo "✅ Service discovery operational with $REGISTERED_SERVICES services"
+        else
+          echo "⚠️ Service discovery may have issues"
+        fi
+        
+        # Test API Gateway
+        kubectl port-forward svc/api-gateway -n dev 8080:80 &
+        AG_PID=$!
+        sleep 10
+        
+        if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+          echo "✅ API Gateway is responding"
+        else
+          echo "⚠️ API Gateway may have issues"
+        fi
+        
+        kill $AG_PID
+        
+    - name: Notify Rollback Status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          🚨 EMERGENCY ROLLBACK ${{ job.status == 'success' && 'COMPLETED' || 'FAILED' }}
+          
+          Service(s): ${{ github.event.inputs.service }}
+          Reason: ${{ github.event.inputs.rollback_reason }}
+          Triggered by: ${{ github.actor }}
+          Time: $(date)
+          
+          ${{ job.status == 'success' && '✅ System restored to previous version' || '❌ Rollback failed - immediate attention required!' }}
+          
+          Report: Available in workflow artifacts
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        
+    - name: Create Incident Issue
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = `🚨 CRITICAL: Emergency Rollback Failed - ${{ github.event.inputs.service }}`;
+          const body = `
+          ## Emergency Rollback Failure
+          
+          **Service(s):** ${{ github.event.inputs.service }}
+          **Reason:** ${{ github.event.inputs.rollback_reason }}
+          **Triggered by:** ${{ github.actor }}
+          **Time:** ${new Date().toISOString()}
+          **Workflow:** ${context.workflow}
+          **Run ID:** ${context.runId}
+          
+          ## Immediate Actions Required
+          
+          1. 🔍 Review rollback report in workflow artifacts
+          2. 🚨 Check cluster status manually
+          3. 🛠️ Consider manual intervention
+          4. 📞 Escalate to on-call engineer if necessary
+          
+          ## Links
+          
+          - [Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+          - [Cluster Dashboard](https://console.cloud.google.com/kubernetes/workload?project=${{ env.GCP_PROJECT_ID }})
+          
+          **Priority: CRITICAL**
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['critical', 'rollback-failed', 'incident']
+          });

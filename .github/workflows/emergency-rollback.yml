@@ -1,4 +1,4 @@
-name: Emergency Rollback Pipeline
+name: ⚡ Emergency Rollback Pipeline
 
 on:
   workflow_dispatch:
@@ -8,292 +8,381 @@ on:
         required: true
         type: choice
         options:
-        - all
-        - api-gateway
-        - user-service
-        - product-service
-        - payment-service
-        - order-service
-        - shipping-service
-        - favourite-service
-        - cloud-config
-        - service-discovery
-        - proxy-client
-      rollback_reason:
-        description: 'Reason for rollback'
+          - all
+          - api-gateway
+          - user-service
+          - product-service
+          - payment-service
+          - order-service
+          - shipping-service
+          - favourite-service
+      rollback_type:
+        description: 'Type of rollback to perform'
         required: true
-        default: 'Critical issue detected'
+        type: choice
+        options:
+          - previous-version
+          - specific-version
+          - last-known-good
+      specific_version:
+        description: 'Specific version to rollback to (if rollback_type is specific-version)'
+        required: false
+        type: string
+      reason:
+        description: 'Reason for emergency rollback'
+        required: true
+        type: string
 
 env:
-  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
   GCP_ZONE: us-central1-a
   GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
 
 jobs:
-  emergency-rollback:
+  # 🚨 Pre-Rollback Validation
+  pre-rollback-validation:
+    name: 🚨 Pre-Rollback Validation
     runs-on: ubuntu-latest
-    environment: production
+    outputs:
+      services: ${{ steps.determine-services.outputs.services }}
+      rollback-approved: ${{ steps.validate.outputs.approved }}
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ env.GCP_PROJECT_ID }}
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Get GKE credentials
+    - name: 🛠️ Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: ⚙️ Get GKE Credentials
       run: |
-        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
-        
-    - name: Pre-rollback Health Check
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+
+    - name: 📋 Determine Services to Rollback
+      id: determine-services
       run: |
-        echo "🚨 EMERGENCY ROLLBACK INITIATED"
-        echo "Reason: ${{ github.event.inputs.rollback_reason }}"
-        echo "Service: ${{ github.event.inputs.service }}"
-        echo "Time: $(date)"
-        
-        echo "📊 Current system status before rollback:"
-        kubectl get pods -n dev -o wide
-        kubectl get deployments -n dev
-        
-    - name: Execute Rollback
-      run: |
-        SERVICE="${{ github.event.inputs.service }}"
-        
-        if [[ "$SERVICE" == "all" ]]; then
-          echo "🔄 Rolling back ALL services..."
-          SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
+        if [ "${{ github.event.inputs.service }}" == "all" ]; then
+          SERVICES='["api-gateway", "user-service", "product-service", "payment-service", "order-service", "shipping-service", "favourite-service"]'
         else
-          echo "🔄 Rolling back $SERVICE..."
-          SERVICES=($SERVICE)
+          SERVICES='["${{ github.event.inputs.service }}"]'
         fi
-        
-        # Capturar estado actual antes del rollback
-        echo "=== DEPLOYMENT HISTORY BEFORE ROLLBACK ===" > rollback-report.txt
-        for SVC in "${SERVICES[@]}"; do
-          echo "--- $SVC ---" >> rollback-report.txt
-          kubectl rollout history deployment/$SVC -n dev >> rollback-report.txt 2>&1 || echo "No history for $SVC" >> rollback-report.txt
-        done
-        
-        # Ejecutar rollback
-        for SVC in "${SERVICES[@]}"; do
-          echo "Rolling back $SVC..."
-          
-          # Parar cualquier canary deployment activo
-          kubectl delete deployment ${SVC}-canary -n dev >/dev/null 2>&1 || true
-          kubectl delete virtualservice ${SVC}-vs -n dev >/dev/null 2>&1 || true
-          kubectl delete destinationrule ${SVC}-dr -n dev >/dev/null 2>&1 || true
-          
-          # Rollback to previous version
-          if kubectl rollout undo deployment/$SVC -n dev; then
-            echo "✅ $SVC rollback initiated"
-            
-            # Wait for rollback to complete
-            if kubectl rollout status deployment/$SVC -n dev --timeout=300s; then
-              echo "✅ $SVC rollback completed successfully"
-            else
-              echo "❌ $SVC rollback failed or timed out"
-              kubectl describe deployment $SVC -n dev
-              kubectl get events -n dev | grep $SVC | tail -10
-            fi
-          else
-            echo "❌ Failed to initiate rollback for $SVC"
-          fi
-        done
-        
-    - name: Post-rollback Verification
+        echo "services=$SERVICES" >> $GITHUB_OUTPUT
+        echo "Services to rollback: $SERVICES"
+
+    - name: 🔍 Validate Current State
+      id: validate
       run: |
-        SERVICE="${{ github.event.inputs.service }}"
+        echo "🔍 Validating current cluster state..."
         
-        echo "🔍 Post-rollback verification..."
-        
-        if [[ "$SERVICE" == "all" ]]; then
-          SERVICES=(api-gateway user-service product-service payment-service order-service shipping-service favourite-service cloud-config service-discovery proxy-client)
-        else
-          SERVICES=($SERVICE)
-        fi
-        
-        echo "=== POST-ROLLBACK STATUS ===" >> rollback-report.txt
-        
-        for SVC in "${SERVICES[@]}"; do
-          echo "Verifying $SVC..."
-          
-          # Check deployment status
-          READY_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-          DESIRED_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
-          
-          echo "--- $SVC Verification ---" >> rollback-report.txt
-          echo "Ready: $READY_REPLICAS/$DESIRED_REPLICAS" >> rollback-report.txt
-          
-          if [[ "$READY_REPLICAS" == "$DESIRED_REPLICAS" ]] && [[ "$READY_REPLICAS" -gt "0" ]]; then
-            echo "✅ $SVC is healthy after rollback"
-          else
-            echo "❌ $SVC is not healthy after rollback"
-            kubectl describe deployment $SVC -n dev >> rollback-report.txt
-            kubectl get pods -l app=$SVC -n dev >> rollback-report.txt
-          fi
-          
-          # Test health endpoint if available
-          if kubectl get pods -l app=$SVC -n dev -o jsonpath='{.items[0].status.phase}' | grep -q "Running"; then
-            kubectl port-forward deployment/$SVC -n dev 8080:8080 &
-            PF_PID=$!
-            sleep 5
-            
-            if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
-              echo "✅ $SVC health endpoint responding" >> rollback-report.txt
-            else
-              echo "⚠️ $SVC health endpoint not responding" >> rollback-report.txt
-            fi
-            
-            kill $PF_PID >/dev/null 2>&1 || true
-          fi
-        done
-        
-    - name: Generate Rollback Report
-      run: |
-        echo "📋 Generating rollback report..."
-        
-        cat <<EOF >> rollback-report.txt
-        
-        ===========================================
-        EMERGENCY ROLLBACK SUMMARY
-        ===========================================
-        Time: $(date)
-        Service(s): ${{ github.event.inputs.service }}
-        Reason: ${{ github.event.inputs.rollback_reason }}
-        Triggered by: ${{ github.actor }}
-        
-        ===========================================
-        FINAL SYSTEM STATUS
-        ===========================================
-        EOF
-        
-        kubectl get deployments -n dev -o wide >> rollback-report.txt
-        echo "" >> rollback-report.txt
-        kubectl get pods -n dev -o wide >> rollback-report.txt
-        
-        echo "Rollback report generated:"
-        cat rollback-report.txt
-        
-    - name: Upload Rollback Report
-      uses: actions/upload-artifact@v3
-      with:
-        name: rollback-report-${{ github.run_number }}
-        path: rollback-report.txt
-        retention-days: 30
-        
-    - name: Validate Critical Services
-      run: |
-        echo "🔍 Validating critical services are operational..."
-        
-        CRITICAL_SERVICES=(api-gateway user-service service-discovery)
-        ALL_HEALTHY=true
-        
-        for SVC in "${CRITICAL_SERVICES[@]}"; do
-          READY_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-          DESIRED_REPLICAS=$(kubectl get deployment $SVC -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
-          
-          if [[ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]] || [[ "$READY_REPLICAS" == "0" ]]; then
-            echo "❌ Critical service $SVC is not healthy!"
-            ALL_HEALTHY=false
-          else
-            echo "✅ Critical service $SVC is healthy"
-          fi
-        done
-        
-        if [[ "$ALL_HEALTHY" == "false" ]]; then
-          echo "🚨 CRITICAL: Some services are still unhealthy after rollback!"
+        # Check cluster connectivity
+        if ! kubectl cluster-info >/dev/null 2>&1; then
+          echo "❌ Cannot connect to cluster"
+          echo "approved=false" >> $GITHUB_OUTPUT
           exit 1
         fi
         
-        echo "✅ All critical services are operational"
+        # Validate specific version if provided
+        if [ "${{ github.event.inputs.rollback_type }}" == "specific-version" ] && [ -z "${{ github.event.inputs.specific_version }}" ]; then
+          echo "❌ Specific version required but not provided"
+          echo "approved=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
         
-    - name: Test System Integration
+        echo "✅ Pre-rollback validation passed"
+        echo "approved=true" >> $GITHUB_OUTPUT
+
+    - name: 📊 Log Rollback Request
       run: |
-        echo "🔗 Testing basic system integration..."
+        echo "🚨 EMERGENCY ROLLBACK REQUEST"
+        echo "Timestamp: $(date -u)"
+        echo "Requested by: ${{ github.actor }}"
+        echo "Service(s): ${{ github.event.inputs.service }}"
+        echo "Rollback type: ${{ github.event.inputs.rollback_type }}"
+        echo "Specific version: ${{ github.event.inputs.specific_version }}"
+        echo "Reason: ${{ github.event.inputs.reason }}"
+        echo "Run ID: ${{ github.run_id }}"
+
+  # 🔄 Execute Rollback
+  execute-rollback:
+    name: 🔄 Rollback ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: pre-rollback-validation
+    if: needs.pre-rollback-validation.outputs.rollback-approved == 'true'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.pre-rollback-validation.outputs.services) }}
+      fail-fast: false
+      max-parallel: 3
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-        # Test service discovery
-        kubectl port-forward svc/service-discovery -n dev 8761:8761 &
-        SD_PID=$!
-        sleep 10
+    - name: 🛠️ Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: ⚙️ Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+
+    - name: 🔍 Determine Rollback Target
+      id: rollback-target
+      run: |
+        SERVICE="${{ matrix.service }}"
+        ROLLBACK_TYPE="${{ github.event.inputs.rollback_type }}"
         
-        REGISTERED_SERVICES=$(curl -s http://localhost:8761/eureka/apps | grep -o '<name>[^<]*</name>' | wc -l || echo "0")
-        kill $SD_PID
+        echo "🔍 Determining rollback target for $SERVICE..."
         
-        if [[ $REGISTERED_SERVICES -gt 0 ]]; then
-          echo "✅ Service discovery operational with $REGISTERED_SERVICES services"
-        else
-          echo "⚠️ Service discovery may have issues"
-        fi
+        case "$ROLLBACK_TYPE" in
+          "previous-version")
+            # Get previous version from deployment history
+            CURRENT_REVISION=$(kubectl rollout history deployment/$SERVICE -n dev | tail -n 1 | awk '{print $1}')
+            PREVIOUS_REVISION=$((CURRENT_REVISION - 1))
+            
+            if [ "$PREVIOUS_REVISION" -lt 1 ]; then
+              echo "❌ No previous version available for $SERVICE"
+              exit 1
+            fi
+            
+            echo "target_type=revision" >> $GITHUB_OUTPUT
+            echo "target_value=$PREVIOUS_REVISION" >> $GITHUB_OUTPUT
+            echo "Target: Previous revision ($PREVIOUS_REVISION)"
+            ;;
+            
+          "specific-version")
+            SPECIFIC_VERSION="${{ github.event.inputs.specific_version }}"
+            
+            # Verify the image exists
+            if ! gcloud container images list-tags ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE --filter="tags=$SPECIFIC_VERSION" --format="get(tags)" | grep -q "$SPECIFIC_VERSION"; then
+              echo "❌ Specified version $SPECIFIC_VERSION not found for $SERVICE"
+              exit 1
+            fi
+            
+            echo "target_type=image" >> $GITHUB_OUTPUT
+            echo "target_value=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$SPECIFIC_VERSION" >> $GITHUB_OUTPUT
+            echo "Target: Specific version ($SPECIFIC_VERSION)"
+            ;;
+            
+          "last-known-good")
+            # Find last known good version (this would typically come from monitoring/health checks)
+            # For now, we'll use the version from 24 hours ago or previous stable tag
+            STABLE_TAG=$(gcloud container images list-tags ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE --filter="tags:stable OR tags:prod" --limit=1 --format="get(tags[0])" || echo "")
+            
+            if [ -z "$STABLE_TAG" ]; then
+              echo "❌ No stable version found for $SERVICE"
+              exit 1
+            fi
+            
+            echo "target_type=image" >> $GITHUB_OUTPUT
+            echo "target_value=${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/$SERVICE:$STABLE_TAG" >> $GITHUB_OUTPUT
+            echo "Target: Last known good ($STABLE_TAG)"
+            ;;
+        esac
+
+    - name: 🚨 Execute Emergency Rollback
+      run: |
+        SERVICE="${{ matrix.service }}"
+        TARGET_TYPE="${{ steps.rollback-target.outputs.target_type }}"
+        TARGET_VALUE="${{ steps.rollback-target.outputs.target_value }}"
         
-        # Test API Gateway
-        kubectl port-forward svc/api-gateway -n dev 8080:80 &
-        AG_PID=$!
-        sleep 10
+        echo "🚨 Executing emergency rollback for $SERVICE..."
+        echo "Target Type: $TARGET_TYPE"
+        echo "Target Value: $TARGET_VALUE"
         
-        if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
-          echo "✅ API Gateway is responding"
-        else
-          echo "⚠️ API Gateway may have issues"
-        fi
+        # Record current state before rollback
+        kubectl get deployment $SERVICE -n dev -o yaml > /tmp/pre-rollback-$SERVICE.yaml
         
-        kill $AG_PID
+        case "$TARGET_TYPE" in
+          "revision")
+            echo "🔄 Rolling back to revision $TARGET_VALUE..."
+            kubectl rollout undo deployment/$SERVICE -n dev --to-revision=$TARGET_VALUE
+            ;;
+          "image")
+            echo "🔄 Rolling back to image $TARGET_VALUE..."
+            kubectl set image deployment/$SERVICE $SERVICE=$TARGET_VALUE -n dev
+            ;;
+        esac
         
-    - name: Notify Rollback Status
-      uses: 8398a7/action-slack@v3
+        echo "⏳ Waiting for rollback to complete..."
+        kubectl rollout status deployment/$SERVICE -n dev --timeout=300s
+        
+        echo "✅ Rollback completed for $SERVICE"
+
+    - name: 🩺 Post-Rollback Health Check
+      run: |
+        SERVICE="${{ matrix.service }}"
+        
+        echo "🩺 Running post-rollback health checks for $SERVICE..."
+        
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=$SERVICE -n dev --timeout=300s
+        
+        # Get service endpoint
+        SERVICE_IP=$(kubectl get svc $SERVICE -n dev -o jsonpath='{.spec.clusterIP}')
+        
+        # Test health endpoint
+        for i in {1..5}; do
+          if kubectl run health-check-rollback-$i --image=curlimages/curl --rm -i --restart=Never -- \
+            curl -f -m 10 http://$SERVICE_IP/actuator/health; then
+            echo "✅ Health check $i passed for $SERVICE"
+          else
+            echo "❌ Health check $i failed for $SERVICE"
+            if [ $i -eq 5 ]; then
+              exit 1
+            fi
+          fi
+          sleep 10
+        done
+        
+        echo "✅ All health checks passed for $SERVICE"
+
+    - name: 📊 Record Rollback Event
+      run: |
+        SERVICE="${{ matrix.service }}"
+        
+        echo "📊 Recording rollback event..."
+        
+        # Create rollback annotation
+        kubectl annotate deployment $SERVICE -n dev \
+          rollback.timestamp="$(date -u)" \
+          rollback.reason="${{ github.event.inputs.reason }}" \
+          rollback.triggered-by="${{ github.actor }}" \
+          rollback.run-id="${{ github.run_id }}" \
+          rollback.type="${{ github.event.inputs.rollback_type }}" \
+          --overwrite
+        
+        echo "✅ Rollback event recorded for $SERVICE"
+
+    - name: 📊 Upload Pre-Rollback State
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        status: ${{ job.status }}
-        text: |
-          🚨 EMERGENCY ROLLBACK ${{ job.status == 'success' && 'COMPLETED' || 'FAILED' }}
-          
-          Service(s): ${{ github.event.inputs.service }}
-          Reason: ${{ github.event.inputs.rollback_reason }}
-          Triggered by: ${{ github.actor }}
-          Time: $(date)
-          
-          ${{ job.status == 'success' && '✅ System restored to previous version' || '❌ Rollback failed - immediate attention required!' }}
-          
-          Report: Available in workflow artifacts
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        
-    - name: Create Incident Issue
-      if: failure()
-      uses: actions/github-script@v6
+        name: pre-rollback-state-${{ matrix.service }}
+        path: /tmp/pre-rollback-${{ matrix.service }}.yaml
+
+  # 🔍 Post-Rollback Verification
+  post-rollback-verification:
+    name: 🔍 Post-Rollback Verification
+    runs-on: ubuntu-latest
+    needs: [pre-rollback-validation, execute-rollback]
+    if: always() && needs.pre-rollback-validation.outputs.rollback-approved == 'true'
+    steps:
+    - name: 🔑 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        script: |
-          const title = `🚨 CRITICAL: Emergency Rollback Failed - ${{ github.event.inputs.service }}`;
-          const body = `
-          ## Emergency Rollback Failure
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: 🛠️ Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: ⚙️ Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+          --zone ${{ env.GCP_ZONE }} \
+          --project ${{ env.GCP_PROJECT_ID }}
+
+    - name: 🔍 Verify System Health
+      run: |
+        echo "🔍 Verifying overall system health after rollback..."
+        
+        SERVICES_JSON='${{ needs.pre-rollback-validation.outputs.services }}'
+        FAILED_SERVICES=0
+        
+        for SERVICE in $(echo "$SERVICES_JSON" | jq -r '.[]'); do
+          echo "Checking $SERVICE..."
           
-          **Service(s):** ${{ github.event.inputs.service }}
-          **Reason:** ${{ github.event.inputs.rollback_reason }}
-          **Triggered by:** ${{ github.actor }}
-          **Time:** ${new Date().toISOString()}
-          **Workflow:** ${context.workflow}
-          **Run ID:** ${context.runId}
+          # Check deployment status
+          if ! kubectl get deployment $SERVICE -n dev >/dev/null 2>&1; then
+            echo "❌ Deployment $SERVICE not found"
+            FAILED_SERVICES=$((FAILED_SERVICES + 1))
+            continue
+          fi
           
-          ## Immediate Actions Required
+          # Check if pods are ready
+          READY_PODS=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.status.readyReplicas}')
+          DESIRED_PODS=$(kubectl get deployment $SERVICE -n dev -o jsonpath='{.spec.replicas}')
           
-          1. 🔍 Review rollback report in workflow artifacts
-          2. 🚨 Check cluster status manually
-          3. 🛠️ Consider manual intervention
-          4. 📞 Escalate to on-call engineer if necessary
+          if [ "$READY_PODS" != "$DESIRED_PODS" ]; then
+            echo "❌ $SERVICE pods not ready ($READY_PODS/$DESIRED_PODS)"
+            FAILED_SERVICES=$((FAILED_SERVICES + 1))
+          else
+            echo "✅ $SERVICE is healthy ($READY_PODS/$DESIRED_PODS)"
+          fi
+        done
+        
+        if [ "$FAILED_SERVICES" -gt 0 ]; then
+          echo "❌ $FAILED_SERVICES service(s) failed health check after rollback"
+          exit 1
+        else
+          echo "✅ All services are healthy after rollback"
+        fi
+
+    - name: 🧪 Run Smoke Tests
+      run: |
+        echo "🧪 Running smoke tests on rolled back services..."
+        
+        # Test API Gateway if it was rolled back
+        if echo '${{ needs.pre-rollback-validation.outputs.services }}' | jq -e '.[] | select(. == "api-gateway")' >/dev/null; then
+          API_GATEWAY_IP=$(kubectl get svc api-gateway -n dev -o jsonpath='{.spec.clusterIP}')
           
-          ## Links
+          kubectl run smoke-test --image=curlimages/curl --rm -i --restart=Never -- \
+            curl -f -m 10 http://$API_GATEWAY_IP/actuator/health || {
+            echo "❌ API Gateway smoke test failed"
+            exit 1
+          }
           
-          - [Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
-          - [Cluster Dashboard](https://console.cloud.google.com/kubernetes/workload?project=${{ env.GCP_PROJECT_ID }})
-          
-          **Priority: CRITICAL**
-          `;
-          
-          await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: title,
-            body: body,
-            labels: ['critical', 'rollback-failed', 'incident']
-          });
+          echo "✅ API Gateway smoke test passed"
+        fi
+        
+        echo "✅ All smoke tests passed"
+
+  # 📊 Rollback Summary
+  rollback-summary:
+    name: 📊 Emergency Rollback Summary
+    runs-on: ubuntu-latest
+    needs: [pre-rollback-validation, execute-rollback, post-rollback-verification]
+    if: always()
+    steps:
+    - name: 📊 Generate Summary
+      run: |
+        echo "## ⚡ Emergency Rollback Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "**Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Reason**: ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Service(s)**: ${{ github.event.inputs.service }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Rollback Type**: ${{ github.event.inputs.rollback_type }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ github.event.inputs.rollback_type }}" == "specific-version" ]; then
+          echo "**Target Version**: ${{ github.event.inputs.specific_version }}" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pre-validation**: ${{ needs.pre-rollback-validation.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Rollback Execution**: ${{ needs.execute-rollback.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Post-verification**: ${{ needs.post-rollback-verification.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.execute-rollback.result }}" == "success" ] && [ "${{ needs.post-rollback-verification.result }}" == "success" ]; then
+          echo "✅ **Emergency rollback completed successfully!**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Next Steps**: Monitor system closely and investigate the root cause that triggered this rollback." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Emergency rollback failed or incomplete**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚨 **URGENT**: Manual intervention required. Contact DevOps team immediately." >> $GITHUB_STEP_SUMMARY
+        fi

@@ -1,0 +1,279 @@
+name: Canary Deployment Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        type: choice
+        options:
+        - api-gateway
+        - user-service
+        - product-service
+        - payment-service
+        - order-service
+        - shipping-service
+        - favourite-service
+      canary_percentage:
+        description: 'Canary traffic percentage (10, 25, 50, 100)'
+        required: true
+        default: '10'
+        type: choice
+        options:
+        - '10'
+        - '25'
+        - '50'
+        - '100'
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+
+env:
+  GCP_PROJECT_ID: axiomatic-fiber-479102-k7
+  GCP_ZONE: us-central1-a
+  GKE_CLUSTER: ecommerce-cluster
+  REGISTRY: gcr.io
+
+jobs:
+  canary-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Create Canary Deployment
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        CANARY_PERCENTAGE="${{ github.event.inputs.canary_percentage }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:${IMAGE_TAG}"
+        
+        echo "🚀 Starting canary deployment for $SERVICE with $CANARY_PERCENTAGE% traffic"
+        
+        # Crear deployment canary
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${SERVICE}-canary
+          namespace: dev
+          labels:
+            app: ${SERVICE}
+            version: canary
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: ${SERVICE}
+              version: canary
+          template:
+            metadata:
+              labels:
+                app: ${SERVICE}
+                version: canary
+            spec:
+              containers:
+              - name: ${SERVICE}
+                image: ${IMAGE}
+                ports:
+                - containerPort: 8080
+                resources:
+                  requests:
+                    memory: "768Mi"
+                    cpu: "300m"
+                  limits:
+                    memory: "1536Mi"
+                    cpu: "750m"
+                env:
+                - name: SPRING_PROFILES_ACTIVE
+                  value: "dev"
+        EOF
+        
+        # Esperar a que el canary esté listo
+        kubectl rollout status deployment/${SERVICE}-canary -n dev --timeout=300s
+        
+        echo "✅ Canary deployment created and ready"
+        
+    - name: Configure Traffic Split
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        CANARY_PERCENTAGE="${{ github.event.inputs.canary_percentage }}"
+        STABLE_PERCENTAGE=$((100 - CANARY_PERCENTAGE))
+        
+        echo "🔀 Configuring traffic split: Stable($STABLE_PERCENTAGE%) / Canary($CANARY_PERCENTAGE%)"
+        
+        # Actualizar labels en deployment principal
+        kubectl patch deployment ${SERVICE} -n dev -p '{"spec":{"template":{"metadata":{"labels":{"version":"stable"}}}}}'
+        
+        # Crear VirtualService para traffic splitting (usando Istio si está disponible)
+        if kubectl get crd virtualservices.networking.istio.io >/dev/null 2>&1; then
+          cat <<EOF | kubectl apply -f -
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: ${SERVICE}-vs
+            namespace: dev
+          spec:
+            hosts:
+            - ${SERVICE}
+            http:
+            - route:
+              - destination:
+                  host: ${SERVICE}
+                  subset: stable
+                weight: ${STABLE_PERCENTAGE}
+              - destination:
+                  host: ${SERVICE}
+                  subset: canary
+                weight: ${CANARY_PERCENTAGE}
+          ---
+          apiVersion: networking.istio.io/v1beta1
+          kind: DestinationRule
+          metadata:
+            name: ${SERVICE}-dr
+            namespace: dev
+          spec:
+            host: ${SERVICE}
+            subsets:
+            - name: stable
+              labels:
+                version: stable
+            - name: canary
+              labels:
+                version: canary
+          EOF
+        else
+          echo "⚠️ Istio not detected, using basic load balancing"
+          # En este caso, ambas versiones recibirán tráfico según el número de réplicas
+        fi
+        
+    - name: Monitor Canary Health
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "🩺 Monitoring canary health for 5 minutes..."
+        
+        for i in {1..10}; do
+          echo "Health check $i/10..."
+          
+          # Verificar que los pods estén corriendo
+          CANARY_READY=$(kubectl get deployment ${SERVICE}-canary -n dev -o jsonpath='{.status.readyReplicas}')
+          if [[ "$CANARY_READY" != "1" ]]; then
+            echo "❌ Canary deployment not ready!"
+            exit 1
+          fi
+          
+          # Verificar health endpoint si está disponible
+          kubectl port-forward deployment/${SERVICE}-canary -n dev 8080:8080 &
+          PF_PID=$!
+          sleep 5
+          
+          if curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+            echo "✅ Canary health check passed"
+          else
+            echo "⚠️ Health endpoint not responding, checking pod status..."
+            kubectl describe pod -l app=${SERVICE},version=canary -n dev
+          fi
+          
+          kill $PF_PID >/dev/null 2>&1 || true
+          sleep 30
+        done
+        
+        echo "✅ Canary monitoring completed successfully"
+        
+    - name: Collect Metrics
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        
+        echo "📊 Collecting canary metrics..."
+        
+        # Obtener métricas básicas
+        echo "=== Canary Pod Status ==="
+        kubectl get pods -l app=${SERVICE},version=canary -n dev -o wide
+        
+        echo "=== Resource Usage ==="
+        kubectl top pods -l app=${SERVICE},version=canary -n dev || echo "Metrics not available"
+        
+        echo "=== Recent Events ==="
+        kubectl get events -n dev --sort-by='.lastTimestamp' | grep ${SERVICE}-canary | tail -5
+        
+        echo "📊 Metrics collection completed"
+        
+    - name: Notify Canary Status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          🕺 Canary Deployment Status for ${{ github.event.inputs.service }}:
+          • Version: ${{ github.event.inputs.image_tag }}
+          • Traffic: ${{ github.event.inputs.canary_percentage }}%
+          • Status: ${{ job.status }}
+          
+          Next steps: Monitor for 30 minutes, then promote or rollback.
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Job manual para promover canary a producción
+  promote-canary:
+    runs-on: ubuntu-latest
+    needs: canary-deploy
+    if: github.event.inputs.canary_percentage == '100'
+    environment: production
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GCP_ZONE --project $GCP_PROJECT_ID
+        
+    - name: Promote Canary to Production
+      run: |
+        SERVICE="${{ github.event.inputs.service }}"
+        IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+        IMAGE="${REGISTRY}/${GCP_PROJECT_ID}/${SERVICE}:${IMAGE_TAG}"
+        
+        echo "🚀 Promoting canary to production..."
+        
+        # Actualizar deployment principal con la imagen canary
+        kubectl set image deployment/${SERVICE} -n dev ${SERVICE}=${IMAGE}
+        
+        # Esperar rollout
+        kubectl rollout status deployment/${SERVICE} -n dev --timeout=300s
+        
+        # Eliminar deployment canary
+        kubectl delete deployment ${SERVICE}-canary -n dev || true
+        
+        # Limpiar recursos de Istio si existen
+        kubectl delete virtualservice ${SERVICE}-vs -n dev || true
+        kubectl delete destinationrule ${SERVICE}-dr -n dev || true
+        
+        echo "✅ Canary promoted to production successfully!"
+        
+    - name: Notify Promotion
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: |
+          🎉 Canary Promoted to Production!
+          • Service: ${{ github.event.inputs.service }}
+          • Version: ${{ github.event.inputs.image_tag }}
+          • All traffic now on new version
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
