@@ -1,10 +1,10 @@
-name: 🐦 Canary Deployment (Simple)
+name: "Canary Deployment Simple"
 
 on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to deploy with canary strategy'
+        description: "Service to deploy with canary strategy"
         required: true
         type: choice
         options:
@@ -16,13 +16,13 @@ on:
           - shipping-service
           - favourite-service
       image_tag:
-        description: 'Image tag to deploy'
+        description: "Image tag to deploy"
         required: true
-        default: 'latest'
+        default: "latest"
       canary_percentage:
-        description: 'Percentage of traffic (1-50)'
+        description: "Percentage of traffic (1-50)"
         required: true
-        default: '10'
+        default: "10"
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'axiomatic-fiber-479102-k7' }}
