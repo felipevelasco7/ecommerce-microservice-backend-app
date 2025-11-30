@@ -31,7 +31,6 @@ env:
   GKE_CLUSTER: ecommerce-cluster
   REGISTRY: gcr.io
   USE_GKE_GCLOUD_AUTH_PLUGIN: True
-  USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
 jobs:
   # 🟢 Deploy to Green Environment

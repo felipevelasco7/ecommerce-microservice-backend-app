@@ -38,6 +38,7 @@ env:
   GCP_ZONE: us-central1-a
   GKE_CLUSTER: ecommerce-cluster
   REGISTRY: gcr.io
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
 jobs:
   # 🚨 Pre-Rollback Validation
@@ -58,6 +59,11 @@ jobs:
         
     - name: 🛠️ Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
+      
+    - name: 🔧 Install GKE Auth Plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        export USE_GKE_GCLOUD_AUTH_PLUGIN=True
       
     - name: ⚙️ Get GKE Credentials
       run: |
