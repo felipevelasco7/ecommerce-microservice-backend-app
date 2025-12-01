@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Gestión de Secretos y Sealed Secrets</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header */
+        .header {
+            padding: 30px 60px 20px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #059669; /* Green for Security/Secrets */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 40% 60%;
+            gap: 40px;
+            background-color: #f9fafb;
+            overflow: hidden;
+        }
+
+        /* Left Column: Features & Concepts */
+        .features-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .concept-card {
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .concept-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 5px;
+        }
+
+        .concept-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .icon-lock { background-color: #ecfdf5; color: #059669; }
+        .icon-git { background-color: #fff7ed; color: #c2410c; }
+        .icon-rotate { background-color: #eff6ff; color: #2563eb; }
+
+        .concept-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .concept-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+        }
+        
+        .step-num {
+            background-color: #1f2937;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        /* Right Column: Code Comparison */
+        .code-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .comparison-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .code-panel {
+            background-color: #1f2937; /* Dark theme for code */
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #374151;
+        }
+
+        .panel-header {
+            background-color: #111827;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #374151;
+        }
+
+        .file-name {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .badge-danger { background-color: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+        .badge-success { background-color: #064e3b; color: #6ee7b7; border: 1px solid #065f46; }
+
+        .code-content {
+            padding: 16px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.85rem;
+            color: #e5e7eb;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+
+        /* Syntax Highlighting */
+        .k { color: #f472b6; } /* Key */
+        .v { color: #60a5fa; } /* Value */
+        .s { color: #34d399; } /* String */
+        .c { color: #6b7280; font-style: italic; } /* Comment */
+        .hl { background-color: rgba(255, 255, 255, 0.1); display: block; margin: 0 -16px; padding: 0 16px; } /* Highlight */
+        .enc { color: #fbbf24; } /* Encrypted blob */
+
+        .arrow-divider {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #6b7280;
+            font-size: 1.2rem;
+            margin: -10px 0;
+            z-index: 5;
+        }
+
+        /* Bottom Stats */
+        .stats-bar {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+
+        .stat-icon { color: #059669; }
+        .stat-bold { font-weight: 700; color: #1f2937; }
+    </style>
+</head>
+<body style="">
+<div class="slide-container">
+<!-- Header -->
+<div class="header" style="position: relative; transform: translate(-2.51968px, -7.55908px);">
+<div class="title-bar"></div>
+<h1>Gestión de Secretos con Sealed Secrets</h1>
+<p class="subtitle">Implementación GitOps-safe para credenciales mediante criptografía asimétrica y Sealed Secrets Controller</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Concepts -->
+<div class="features-column">
+<!-- Concept 1: Encryption -->
+<div class="concept-card">
+<div class="concept-header">
+<div class="concept-icon icon-lock"><i class="fas fa-key"></i></div>
+<div class="concept-title">Cifrado Asimétrico</div>
+</div>
+<p class="concept-desc">
+                    El desarrollador cifra el secreto localmente usando la <strong>clave pública</strong> del cluster. Solo el controlador dentro del cluster (con la clave privada) puede descifrarlo.
+                </p>
+</div>
+<!-- Concept 2: GitOps Workflow -->
+<div class="concept-card">
+<div class="concept-header">
+<div class="concept-icon icon-git"><i class="fab fa-git-alt"></i></div>
+<div class="concept-title">Seguro para Repositorios</div>
+</div>
+<p class="concept-desc">
+                    Los manifiestos <code>SealedSecret</code> pueden comitearse en repositorios públicos (GitHub) sin riesgo, ya que el contenido sensible es ilegible fuera del cluster.
+                </p>
+</div>
+<!-- Concept 3: Rotation -->
+<div class="concept-card">
+<div class="concept-header">
+<div class="concept-icon icon-rotate"><i class="fas fa-sync-alt"></i></div>
+<div class="concept-title">Rotación Automática</div>
+</div>
+<p class="concept-desc">
+                    El controlador rota las claves de cifrado cada 30 días por defecto. Los secretos antiguos siguen siendo descifrables (soporte multi-clave).
+                </p>
+</div>
+<!-- Workflow visualization -->
+<div style="margin-top: 10px;">
+<h3 style="font-size: 0.9rem; font-weight: 700; color: #374151; margin-bottom: 10px;">Flujo de Creación:</h3>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div class="workflow-step">
+<span class="step-num">1</span>
+<span><code>kubectl create secret ... --dry-run=client -o yaml</code></span>
+</div>
+<div class="workflow-step">
+<span class="step-num">2</span>
+<span><code>kubeseal --format=yaml &gt; sealed-secret.yaml</code></span>
+</div>
+<div class="workflow-step">
+<span class="step-num">3</span>
+<span><code>git push</code> (Commit seguro del archivo cifrado)</span>
+</div>
+<div class="workflow-step">
+<span class="step-num">4</span>
+<span><code>kubectl apply</code> (Controller descifra y crea Secret nativo)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Code Comparison -->
+<div class="code-column">
+<div class="comparison-wrapper">
+<!-- Traditional Secret (Unsafe) -->
+<div class="code-panel" style="opacity: 0.7;">
+<div class="panel-header">
+<div class="file-name"><i class="fas fa-file-code"></i> secret-plano.yaml (NO SEGURO)</div>
+<div class="status-badge badge-danger">Riesgo Alto</div>
+</div>
+<div class="code-content">
+<div><span class="k">apiVersion:</span> <span class="s">v1</span></div>
+<div><span class="k">kind:</span> <span class="s">Secret</span></div>
+<div><span class="k">metadata:</span></div>
+<div>&nbsp;&nbsp;<span class="k">name:</span> <span class="s">db-credentials</span></div>
+<div><span class="k">data:</span></div>
+<div class="hl">&nbsp;&nbsp;<span class="c"># Base64 encoded (fácilmente reversible)</span></div>
+<div class="hl">&nbsp;&nbsp;<span class="k">password:</span> <span class="s">c3VwZXJfc2VjcmV0X3Bhc3N3b3Jk</span></div>
+</div>
+</div>
+<!-- Arrow Divider -->
+<div class="arrow-divider">
+<i class="fas fa-arrow-down"></i>
+</div>
+<!-- Sealed Secret (Safe) -->
+<div class="code-panel">
+<div class="panel-header">
+<div class="file-name"><i class="fas fa-shield-alt"></i> sealed-secret.yaml (SEGURO)</div>
+<div class="status-badge badge-success">GitOps Ready</div>
+</div>
+<div class="code-content">
+<div><span class="k">apiVersion:</span> <span class="s">bitnami.com/v1alpha1</span></div>
+<div><span class="k">kind:</span> <span class="s">SealedSecret</span></div>
+<div><span class="k">metadata:</span></div>
+<div>&nbsp;&nbsp;<span class="k">name:</span> <span class="s">db-credentials</span></div>
+<div>&nbsp;&nbsp;<span class="k">namespace:</span> <span class="s">dev</span></div>
+<div><span class="k">spec:</span></div>
+<div>&nbsp;&nbsp;<span class="k">encryptedData:</span></div>
+<div class="hl">&nbsp;&nbsp;&nbsp;&nbsp;<span class="c"># Cifrado asimétrico (ilegitible sin clave privada)</span></div>
+<div class="hl">&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">password:</span> <span class="enc">AgBy3/4...[BLOB CIFRADO NO LEGIBLE]...Xy9z</span></div>
+<div>&nbsp;&nbsp;<span class="k">template:</span></div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">metadata:</span></div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">name:</span> <span class="s">db-credentials</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Stats Bar -->
+<div class="stats-bar">
+<div class="stat-item">
+<i class="fas fa-check-circle stat-icon"></i>
+<span>Controller Status: <span class="stat-bold">Running (namespace: sealed-secrets)</span></span>
+</div>
+<div class="stat-item">
+<i class="fas fa-shield-alt stat-icon"></i>
+<span>Key Rotation: <span class="stat-bold">Automatic (30 days)</span></span>
+</div>
+<div class="stat-item">
+<i class="fas fa-code-branch stat-icon"></i>
+<span>Integration: <span class="stat-bold">100% GitHub Actions Compatible</span></span>
+</div>
+</div>
+</div>
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/secrets.png?raw=true" alt="secrets">
+</body></html>

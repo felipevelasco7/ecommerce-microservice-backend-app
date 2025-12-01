@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Estrategias de Despliegue Avanzadas</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+        
+        /* Header */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+        
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #10b981; /* Green for Deployment */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 20px 60px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #f9fafb;
+            gap: 20px;
+        }
+
+        /* Strategy Cards Container */
+        .strategies-container {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+
+        .strategy-card {
+            flex: 1;
+            background-color: white;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+
+        .card-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .card-subtitle {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        /* Visual Flow Styles */
+        .visual-flow {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .step-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #f3f4f6;
+            border: 2px solid #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: #6b7280;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #374151;
+        }
+
+        .step-desc {
+            font-size: 0.7rem;
+            color: #6b7280;
+            line-height: 1.2;
+        }
+
+        .flow-connector {
+            position: absolute;
+            left: 11px;
+            top: 12px;
+            bottom: 12px;
+            width: 2px;
+            background-color: #e5e7eb;
+            z-index: 1;
+        }
+
+        /* Specific Card Styles */
+        /* Blue-Green */
+        .bg-blue-green .card-icon { background-color: #eff6ff; color: #2563eb; }
+        .bg-blue-green .step-dot { border-color: #93c5fd; color: #2563eb; background-color: #eff6ff; }
+        
+        /* Canary */
+        .bg-canary .card-icon { background-color: #fffbeb; color: #d97706; }
+        .bg-canary .step-dot { border-color: #fcd34d; color: #d97706; background-color: #fffbeb; }
+        
+        /* Rollback */
+        .bg-rollback .card-icon { background-color: #fef2f2; color: #dc2626; }
+        .bg-rollback .step-dot { border-color: #fca5a5; color: #dc2626; background-color: #fef2f2; }
+
+        /* Badges */
+        .feature-badge {
+            background-color: #f3f4f6;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: #4b5563;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 5px;
+        }
+
+        /* Bottom Legend */
+        .bottom-legend {
+            display: flex;
+            gap: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+        
+        /* Custom Visualizations */
+        .traffic-split {
+            height: 8px;
+            width: 100%;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            margin-top: 5px;
+            overflow: hidden;
+            display: flex;
+        }
+        
+        .split-stable { width: 90%; background-color: #3b82f6; }
+        .split-canary { width: 10%; background-color: #f59e0b; }
+        
+        .env-switch {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        
+        .env-box {
+            flex: 1;
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+        }
+
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Estrategias de Despliegue Avanzadas</h1>
+<p class="subtitle">Mecanismos de entrega progresiva, reducción de riesgos y recuperación ante fallos en producción</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<div class="strategies-container">
+<!-- Blue-Green Deployment -->
+<div class="strategy-card bg-blue-green">
+<div class="card-header">
+<div class="card-icon">
+<i class="fas fa-sync-alt"></i>
+</div>
+<div>
+<div class="card-title">Blue-Green Deployment</div>
+<div class="card-subtitle">Cero Downtime &amp; Switch Instantáneo</div>
+</div>
+</div>
+<div class="visual-flow">
+<div class="flow-connector"></div>
+<div class="flow-step">
+<div class="step-dot">1</div>
+<div class="step-content">
+<div class="step-title">Identify Active Env</div>
+<div class="step-desc">Determina cuál es Blue (Live) y cuál Green (Idle)</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">2</div>
+<div class="step-content">
+<div class="step-title">Deploy to Green</div>
+<div class="step-desc">Despliega nueva versión en ambiente inactivo</div>
+<div class="env-switch">
+<div class="env-box bg-blue-500" style="opacity: 0.3">Blue (v1)</div>
+<div class="env-box bg-green-500">Green (v2)</div>
+</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">3</div>
+<div class="step-content">
+<div class="step-title">Run Tests</div>
+<div class="step-desc">Ejecuta pruebas smoke &amp; integration en Green</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">4</div>
+<div class="step-content">
+<div class="step-title">Traffic Switch</div>
+<div class="step-desc">Actualiza servicio K8s para apuntar a Green</div>
+<div class="feature-badge"><i class="fas fa-bolt"></i> Instantáneo</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Canary Deployment -->
+<div class="strategy-card bg-canary">
+<div class="card-header">
+<div class="card-icon">
+<i class="fas fa-dove"></i>
+</div>
+<div>
+<div class="card-title">Canary Deployment</div>
+<div class="card-subtitle">Distribución Gradual de Tráfico</div>
+</div>
+</div>
+<div class="visual-flow">
+<div class="flow-connector"></div>
+<div class="flow-step">
+<div class="step-dot">1</div>
+<div class="step-content">
+<div class="step-title">Create Canary Pods</div>
+<div class="step-desc">Despliega pequeña flota con nueva versión</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">2</div>
+<div class="step-content">
+<div class="step-title">Traffic Split (10%)</div>
+<div class="step-desc">Configura Istio/Ingress para enviar 10% de tráfico</div>
+<div class="traffic-split">
+<div class="split-stable"></div>
+<div class="split-canary"></div>
+</div>
+<div style="font-size: 0.65rem; display: flex; justify-content: space-between; margin-top: 2px; color: #6b7280;">
+<span>Stable (90%)</span>
+<span>Canary (10%)</span>
+</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">3</div>
+<div class="step-content">
+<div class="step-title">Metric Analysis</div>
+<div class="step-desc">Monitorea errores, latencia y saturación</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">4</div>
+<div class="step-content">
+<div class="step-title">Promotion / Rollback</div>
+<div class="step-desc">Si métricas OK → 100%, si falla → 0%</div>
+<div class="feature-badge"><i class="fas fa-check-circle"></i> Approval Gate</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Emergency Rollback -->
+<div class="strategy-card bg-rollback">
+<div class="card-header">
+<div class="card-icon">
+<i class="fas fa-undo"></i>
+</div>
+<div>
+<div class="card-title">Emergency Rollback</div>
+<div class="card-subtitle">Recuperación ante Fallos</div>
+</div>
+</div>
+<div class="visual-flow">
+<div class="flow-connector"></div>
+<div class="flow-step">
+<div class="step-dot">1</div>
+<div class="step-content">
+<div class="step-title">Incident Detection</div>
+<div class="step-desc">Alerta crítica o reporte de usuario</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">2</div>
+<div class="step-content">
+<div class="step-title">Select Target</div>
+<div class="step-desc">Elige versión previa estable (Last Known Good)</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">3</div>
+<div class="step-content">
+<div class="step-title">Execute Revert</div>
+<div class="step-desc">Helm rollback o `kubectl rollout undo`</div>
+<div class="feature-badge"><i class="fas fa-tachometer-alt"></i> &lt; 1 min</div>
+</div>
+</div>
+<div class="flow-step">
+<div class="step-dot">4</div>
+<div class="step-content">
+<div class="step-title">Verification</div>
+<div class="step-desc">Health check automático post-rollback</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+</div>
+</div>
+</body>
+</html>

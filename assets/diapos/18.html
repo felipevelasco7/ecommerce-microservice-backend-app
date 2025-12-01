@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Documentación Técnica</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #0ea5e9; /* Sky Blue for Docs */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-teal { background-color: #f0fdfa; color: #0d9488; }
+        .icon-indigo { background-color: #eef2ff; color: #4f46e5; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #0ea5e9;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Config Code Block */
+        .doc-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+
+        .doc-line {
+            display: block;
+            line-height: 1.5;
+        }
+
+        .folder { color: #60a5fa; font-weight: bold; }
+        .file { color: #e5e7eb; }
+        .comment { color: #9ca3af; }
+        .tree-struct { color: #9ca3af; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-md { background-color: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Documentación Técnica Completa</h1>
+<p class="subtitle">Estructura documental detallada, guías operativas y evidencias de implementación</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Documentation Structure -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-teal">
+<i class="fas fa-folder-open"></i>
+</div>
+<h2 class="section-title">Estructura Documental (20+ Docs)</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Documentación Central <span class="badge badge-md">Markdown</span></span>
+<span class="feature-desc">README.md con overview del proyecto, stack tecnológico y scripts de inicio rápido para despliegue automatizado.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Guías Especializadas</span>
+<span class="feature-desc">Manuales dedicados para Despliegue (GKE), Testing, Operaciones, Frontend y configuración de Zipkin.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Evidencias de Implementación</span>
+<span class="feature-desc">Capturas de pantalla organizadas de pipelines, dashboards de Grafana, y salidas de comandos kubectl.</span>
+</div>
+</li>
+</ul>
+<div class="doc-block">
+<span class="doc-line"><span class="folder">docs/</span></span>
+<span class="doc-line"><span class="tree-struct">├──</span> <span class="file">DOCUMENTACION-PROYECTO.md</span></span>
+<span class="doc-line"><span class="tree-struct">├──</span> <span class="file">GUIA-DESPLIEGUE-COMPLETO.md</span></span>
+<span class="doc-line"><span class="tree-struct">├──</span> <span class="folder">guides/</span></span>
+<span class="doc-line"><span class="tree-struct">│   ├──</span> <span class="file">TESTING-GUIDE.md</span></span>
+<span class="doc-line"><span class="tree-struct">│   └──</span> <span class="file">MANUAL-OPERACIONES.md</span></span>
+<span class="doc-line"><span class="tree-struct">└──</span> <span class="folder">operations/</span></span>
+<span class="doc-line"><span class="tree-struct">    └──</span> <span class="file">PAUSA-REANUDACION.md</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: Architecture & Analysis -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-indigo">
+<i class="fas fa-project-diagram"></i>
+</div>
+<h2 class="section-title">Arquitectura y Adaptaciones</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Arquitectura Original vs. K8s</span>
+<span class="feature-desc">Documentación detallada de la adaptación de microservicios monolíticos a arquitectura Cloud-Native en GKE.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Diagramas de Arquitectura</span>
+<span class="feature-desc">Visualizaciones de alto nivel del flujo de datos, interacción de componentes y diseño de red.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Organización del Repositorio</span>
+<span class="feature-desc">Estructura clara separando código fuente (<code>microservices/</code>) de manifiestos de infraestructura (<code>k8s/</code>, <code>helm/</code>).</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Manual de Operaciones</span>
+<span class="feature-desc">Procedimientos para mantenimiento del cluster, scripts de pausa/reanudación y troubleshooting.</span>
+</div>
+</li>
+</ul>
+<div class="doc-block" style="background-color: #f8fafc; border-color: #e2e8f0; color: #334155;">
+<span class="doc-line" style="font-weight: 600; color: #0f172a;">// Ubicación de recursos K8s</span>
+<span class="doc-line"><span style="color: #3b82f6;">k8s/</span></span>
+<span class="doc-line"><span style="color: #94a3b8;">├──</span> deployments/ <span style="color: #64748b;"># Manifiestos Apps</span></span>
+<span class="doc-line"><span style="color: #94a3b8;">├──</span> monitoring/ <span style="color: #64748b;"># Stack Observabilidad</span></span>
+<span class="doc-line"><span style="color: #94a3b8;">├──</span> network-policies/ <span style="color: #64748b;"># Seguridad Red</span></span>
+<span class="doc-line"><span style="color: #94a3b8;">└──</span> security/ <span style="color: #64748b;"># RBAC &amp; PSS</span></span>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</body>
+</html>

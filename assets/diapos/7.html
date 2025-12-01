@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Network Policies - Microsegmentación</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+        
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #2563eb;
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #f9fafb;
+            gap: 20px;
+        }
+
+        /* Grid Layout */
+        .policies-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: auto 1fr;
+            gap: 24px;
+            height: 100%;
+        }
+
+        /* Column Header */
+        .column-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .col-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 1rem;
+        }
+
+        .col-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #374151;
+        }
+
+        /* Security Cards */
+        .card-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .security-card {
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .security-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.05);
+            border-color: #d1d5db;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .policy-name {
+            font-family: 'Roboto Mono', monospace;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #1f2937;
+            background-color: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .policy-desc {
+            font-size: 0.85rem;
+            color: #6b7280;
+            line-height: 1.4;
+            margin: 0;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Specific Themes */
+        .theme-critical {
+            border-left: 4px solid #ef4444;
+        }
+        .badge-critical {
+            background-color: #fef2f2;
+            color: #ef4444;
+            border: 1px solid #fee2e2;
+        }
+
+        .theme-access {
+            border-left: 4px solid #3b82f6;
+        }
+        .badge-access {
+            background-color: #eff6ff;
+            color: #3b82f6;
+            border: 1px solid #dbeafe;
+        }
+
+        .theme-infra {
+            border-left: 4px solid #8b5cf6;
+        }
+        .badge-infra {
+            background-color: #f5f3ff;
+            color: #8b5cf6;
+            border: 1px solid #ede9fe;
+        }
+
+        /* Bottom Stats */
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            background-color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            align-items: center;
+            margin-top: auto;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            padding-right: 20px;
+            border-right: 1px solid #f3f4f6;
+        }
+        
+        .stat-item:last-child {
+            border-right: none;
+        }
+
+        .stat-val {
+            font-weight: 700;
+            color: #111827;
+            margin-left: 8px;
+        }
+        
+        .stat-lbl {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-left: 4px;
+        }
+        
+        .icon-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #ecfdf5;
+            color: #059669;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .code-preview {
+            position: absolute;
+            bottom: 30px;
+            right: 60px;
+            width: 300px;
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 15px;
+            color: #e5e7eb;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.7rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            z-index: 20;
+            opacity: 0.95;
+            border: 1px solid #374151;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #374151;
+            color: #9ca3af;
+            font-size: 0.65rem;
+        }
+    </style>
+</head>
+<body style="">
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Network Policies &amp; Microsegmentación</h1>
+<p class="subtitle">Implementación de seguridad Zero Trust mediante políticas de red Kubernetes (Namespace: dev)</p>
+</div>
+<!-- Main Content -->
+<div class="main-content" style="position: relative; transform: translate(8.81886px, -22.6771px);">
+<div class="policies-grid">
+<!-- Column 1: Base Security -->
+<div class="column-wrapper">
+<div class="column-header">
+<div class="col-icon bg-red-100 text-red-600">
+<i class="fas fa-shield-alt"></i>
+</div>
+<div class="col-title">Seguridad Base</div>
+</div>
+<div class="card-stack">
+<!-- Policy 1 -->
+<div class="security-card theme-critical">
+<div class="card-header">
+<span class="policy-name">default-deny-ingress</span>
+<span class="badge badge-critical">Block All</span>
+</div>
+<p class="policy-desc">
+                                Política fundamental que bloquea <strong>todo el tráfico entrante</strong> por defecto en el namespace. Ningún pod puede recibir tráfico a menos que sea explícitamente permitido.
+                            </p>
+</div>
+<!-- Policy 2 -->
+<div class="security-card theme-critical">
+<div class="card-header">
+<span class="policy-name">api-gateway-allow-external</span>
+<span class="badge badge-critical">Ingress</span>
+</div>
+<p class="policy-desc">
+                                Única excepción para tráfico externo. Permite conexiones desde el Ingress Controller / LoadBalancer hacia el API Gateway en puerto 8080.
+                            </p>
+</div>
+<!-- Policy 3 -->
+<div class="security-card theme-critical">
+<div class="card-header">
+<span class="policy-name">postgres-allow-backend</span>
+<span class="badge badge-critical">Database</span>
+</div>
+<p class="policy-desc">
+                                Restringe el acceso a la base de datos (5432) exclusivamente a los microservicios de backend identificados. Bloquea acceso directo no autorizado.
+                            </p>
+</div>
+</div>
+</div>
+<!-- Column 2: Service Access -->
+<div class="column-wrapper">
+<div class="column-header">
+<div class="col-icon bg-blue-100 text-blue-600">
+<i class="fas fa-network-wired"></i>
+</div>
+<div class="col-title">Acceso a Servicios</div>
+</div>
+<div class="card-stack">
+<!-- Policy 4 -->
+<div class="security-card theme-access">
+<div class="card-header">
+<span class="policy-name">allow-from-api-gateway</span>
+<span class="badge badge-access">Routing</span>
+</div>
+<p class="policy-desc">
+                                Permite que el API Gateway se comunique con todos los microservicios downstream (user, product, order, etc.) para enrutamiento de peticiones.
+                            </p>
+</div>
+<!-- Policy 5 -->
+<div class="security-card theme-access">
+<div class="card-header">
+<span class="policy-name">[service]-allow-gateways</span>
+<span class="badge badge-access">Specific</span>
+</div>
+<p class="policy-desc">
+                                6 políticas individuales (una por microservicio: user, product, order, payment, shipping, favourite) que definen granularmente quién puede acceder a cada API específica.
+                            </p>
+</div>
+<!-- Policy 6 -->
+<div class="security-card theme-access">
+<div class="card-header">
+<span class="policy-name">proxy-client-allow-external</span>
+<span class="badge badge-access">External</span>
+</div>
+<p class="policy-desc">
+                                Permite tráfico externo hacia el proxy client, habilitando comunicación desde fuera del cluster hacia este componente de enrutamiento.
+                            </p>
+</div>
+</div>
+</div>
+<!-- Column 3: Infrastructure -->
+<div class="column-wrapper">
+<div class="column-header">
+<div class="col-icon bg-purple-100 text-purple-600">
+<i class="fas fa-server"></i>
+</div>
+<div class="col-title">Infraestructura</div>
+</div>
+<div class="card-stack">
+<!-- Policy 7 -->
+<div class="security-card theme-infra">
+<div class="card-header">
+<span class="policy-name">eureka-allow-all-services</span>
+<span class="badge badge-infra">Discovery</span>
+</div>
+<p class="policy-desc">
+                                Habilita puerto 8761 para que todos los pods puedan registrarse y enviar heartbeats al Eureka Server para Service Discovery dinámico.
+                            </p>
+</div>
+<!-- Policy 8 -->
+<div class="security-card theme-infra">
+<div class="card-header">
+<span class="policy-name">cloud-config-allow-all</span>
+<span class="badge badge-infra">Config</span>
+</div>
+<p class="policy-desc">
+                                Permite acceso al Config Server (9296) durante el arranque de los servicios para obtener configuraciones centralizadas y secretos.
+                            </p>
+</div>
+<!-- Policy 9 -->
+<div class="security-card theme-infra">
+<div class="card-header">
+<span class="policy-name">allow-prometheus-scraping</span>
+<span class="badge badge-infra">Metrics</span>
+</div>
+<p class="policy-desc">
+                                Permite que el servidor Prometheus (desde namespace monitoring) acceda a los endpoints <code>/actuator/prometheus</code> de cada pod.
+                            </p>
+</div>
+<!-- Policy 10 -->
+<div class="security-card theme-infra" style="transform: translate(250.708px, 326.299px);">
+<div class="card-header">
+<span class="policy-name">zipkin-allow-all</span>
+<span class="badge badge-infra">Tracing</span>
+</div>
+<p class="policy-desc">
+                                Habilita el envío de spans de tracing (puerto 9411) desde cualquier microservicio hacia el colector Zipkin para observabilidad distribuida.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Stats Bar -->
+<div class="stats-bar">
+<div class="stat-item">
+<div class="icon-circle"><i class="fas fa-check"></i></div>
+<div class="stat-val">15</div>
+<div class="stat-lbl">Políticas Activas</div>
+</div>
+<div class="stat-item">
+<div class="icon-circle"><i class="fas fa-check"></i></div>
+<div class="stat-val">Zero Trust</div>
+<div class="stat-lbl">Arquitectura</div>
+</div>
+<div class="stat-item">
+<div class="icon-circle"><i class="fas fa-check"></i></div>
+<div class="stat-val">Namespace</div>
+<div class="stat-lbl">Isolation</div>
+</div>
+<div class="stat-item" style="margin-left: auto; border: none;">
+<span style="color: #059669; font-weight: 600; font-size: 0.9rem;">
+<i class="fas fa-lock mr-2"></i> Cumplimiento de Requerimiento #2 (Seguridad)
+                </span>
+</div>
+</div>
+</div>
+<!-- YAML Preview (Decorative) -->
+<div class="code-preview" style="transform: translate(114.646px, -502.676px);">
+<div class="code-header" style="position: relative; transform: translate(-16.3781px, -1.25984px);">
+<span>default-deny-ingress.yaml</span>
+<span>YAML</span>
+</div>
+<div style="line-height: 1.4;">
+<span style="color: #f472b6;">kind:</span> <span style="color: #60a5fa;">NetworkPolicy</span><br>
+<span style="color: #f472b6;">apiVersion:</span> networking.k8s.io/v1<br>
+<span style="color: #f472b6;">metadata:</span><br>
+<span style="color: #f472b6;">&nbsp;&nbsp;name:</span> default-deny-ingress<br>
+<span style="color: #f472b6;">spec:</span><br>
+<span style="color: #f472b6;">&nbsp;&nbsp;podSelector:</span> {}<br>
+<span style="color: #f472b6;">&nbsp;&nbsp;policyTypes:</span><br>
+<span style="color: #f472b6;">&nbsp;&nbsp;-</span> Ingress
+        </div>
+</div>
+</div>
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/networkpolicy1.png?raw=true" alt="network-policies">
+
+</body></html>

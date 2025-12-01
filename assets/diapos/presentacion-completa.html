@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Presentación — Solo diapos/</title>
+    <style>
+      :root{--bg:#0f172a;--fg:#e6edf3;--muted:#94a3b8}
+      html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+      .container{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:12px;box-sizing:border-box}
+      .topbar{width:100%;max-width:1280px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+      .controls{display:flex;gap:8px;align-items:center}
+      button{background:#111827;color:var(--fg);border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;cursor:pointer}
+      button:active{transform:translateY(1px)}
+      .counter{color:var(--muted);font-size:0.95rem}
+      .stage{width:1280px;height:720px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 12px 40px rgba(2,6,23,0.6);display:flex;align-items:center;justify-content:center}
+      iframe.slide-frame{width:100%;height:100%;border:0;background:white}
+      .thumbnail-strip{margin-top:10px;display:flex;gap:6px;overflow:auto;padding:6px 4px;width:1280px}
+      .thumb{width:120px;height:68px;border-radius:6px;overflow:hidden;border:2px solid transparent}
+      .thumb iframe{width:100%;height:100%;border:0}
+      .thumb.active{border-color:#60a5fa}
+      .kbd{background:#0b1220;padding:6px 8px;border-radius:6px;font-size:0.9rem;color:var(--muted)}
+      .fit-btn{background:#065f46;color:#e6fff6}
+      @media (max-width:1400px){.stage,.thumbnail-strip{width:calc(100vw - 48px)}}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <h2 style="margin:0">Presentación (diapos/)</h2>
+          <div class="counter" id="slide-counter">Cargando...</div>
+        </div>
+        <div class="controls">
+          <button id="btn-prev">← Anterior</button>
+          <button id="btn-next">Siguiente →</button>
+          <button id="btn-open">Abrir en pestaña</button>
+          <button id="btn-fs">Pantalla completa</button>
+          <button id="btn-fit" class="fit-btn">Auto-fit</button>
+          <div class="kbd">← → / PgUp PgDn / Home End</div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <!-- iframe principal -->
+        <iframe id="main-frame" class="slide-frame" src="1.html"></iframe>
+      </div>
+
+      <div class="thumbnail-strip" id="thumbs" aria-hidden="false"></div>
+    </div>
+
+    <script>
+      (function(){
+        const total = 22; // ajusta si tienes menos
+        const basePath = '';
+        const main = document.getElementById('main-frame');
+        const counter = document.getElementById('slide-counter');
+        const thumbs = document.getElementById('thumbs');
+        let index = 0;
+        let autoFit = false;
+
+        const urls = Array.from({length: total}, (_,i) => basePath + (i+1) + '.html');
+
+        // crear thumbnails
+        urls.forEach((u,i)=>{
+          const t = document.createElement('div'); t.className='thumb'; t.dataset.index = i;
+          const f = document.createElement('iframe'); f.src = u; f.loading='lazy';
+          t.appendChild(f);
+          t.addEventListener('click', ()=>{ show(i); });
+          thumbs.appendChild(t);
+        });
+
+        const thumbNodes = Array.from(thumbs.querySelectorAll('.thumb'));
+
+        function tryAutoFit(iframe){
+          if(!autoFit) return;
+          try{
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            const el = doc.documentElement || doc.body;
+            const w = el.scrollWidth || el.offsetWidth || el.clientWidth;
+            const h = el.scrollHeight || el.offsetHeight || el.clientHeight;
+            if(!w || !h) return;
+            const stage = document.getElementById('stage');
+            const sw = stage.clientWidth;
+            const sh = stage.clientHeight;
+            const scale = Math.min(sw / w, sh / h);
+            // apply transform to body root inside iframe
+            if(doc.body){
+              doc.body.style.transformOrigin = '0 0';
+              doc.body.style.transform = 'scale(' + scale + ')';
+              doc.body.style.width = w + 'px';
+              doc.body.style.height = h + 'px';
+              doc.documentElement.style.overflow = 'hidden';
+            }
+          }catch(err){
+            // cross-origin or other error — fallback: scale iframe element
+            const stage = document.getElementById('stage');
+            const sw = stage.clientWidth;
+            const sh = stage.clientHeight;
+            // assume 1280x720 default
+            const w = 1280, h = 720;
+            const scale = Math.min(sw / w, sh / h);
+            iframe.style.transformOrigin = '0 0';
+            iframe.style.transform = 'scale(' + scale + ')';
+            iframe.style.width = (w) + 'px';
+            iframe.style.height = (h) + 'px';
+          }
+        }
+
+        function show(i){
+          if(i < 0 || i >= urls.length) return;
+          index = i;
+          // reset transforms on previous iframe
+          const prev = document.getElementById('main-frame');
+          prev.style.transform = '';
+          prev.style.width = '';
+          prev.style.height = '';
+          prev.src = urls[i];
+          counter.textContent = `Diapositiva ${i+1} / ${urls.length}`;
+          thumbNodes.forEach(n=>n.classList.toggle('active', Number(n.dataset.index)===i));
+          location.hash = 'slide-' + (i+1);
+          // ensure thumb visible
+          const active = thumbNodes[i]; if(active) active.scrollIntoView({behavior:'smooth',inline:'center'});
+        }
+
+        // attach load handler to main iframe to auto-fit
+        main.addEventListener('load', ()=>{ tryAutoFit(main); });
+
+        // controls
+        document.getElementById('btn-next').addEventListener('click', ()=> show(Math.min(urls.length-1, index+1)));
+        document.getElementById('btn-prev').addEventListener('click', ()=> show(Math.max(0, index-1)));
+        document.getElementById('btn-open').addEventListener('click', ()=> window.open(urls[index], '_blank'));
+        document.getElementById('btn-fs').addEventListener('click', ()=>{
+          const elem = document.getElementById('stage');
+          if (elem.requestFullscreen) elem.requestFullscreen(); else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        });
+        document.getElementById('btn-fit').addEventListener('click', ()=>{ autoFit = !autoFit; document.getElementById('btn-fit').textContent = autoFit ? 'Auto-fit' : 'Auto-fit (off)'; tryAutoFit(main); });
+
+        // keyboard
+        window.addEventListener('keydown', (e)=>{
+          if(['ArrowRight','PageDown'].includes(e.key)) { show(Math.min(urls.length-1,index+1)); e.preventDefault(); }
+          if(['ArrowLeft','PageUp'].includes(e.key)) { show(Math.max(0,index-1)); e.preventDefault(); }
+          if(e.key === 'Home') { show(0); }
+          if(e.key === 'End') { show(urls.length-1); }
+        });
+
+        // init from hash
+        const h = (location.hash || '').match(/slide-(\d+)/);
+        const start = h ? Math.max(0, Math.min(urls.length-1, parseInt(h[1],10)-1)) : 0;
+        show(start);
+
+        // expose API for debugging
+        window.presentation = {show, urls, index: ()=>index};
+      })();
+    </script>
+  </body>
+</html>
+         
+<script>
+  const slides = Array.from(document.getElementsByClassName('slide'));
+  const dotsContainer = document.getElementById('dots');
+  let idx = 0;
+  function buildDots(){
+    slides.forEach((s,i)=>{const d=document.createElement('div');d.className='dot'+(i===0?' active':'');d.addEventListener('click',()=>currentSlide(i));dotsContainer.appendChild(d)})
+  }
+  function show(n){
+    slides.forEach(s=>s.classList.remove('active'));
+    slides[n].classList.add('active');
+    const dots=document.getElementsByClassName('dot');
+    for(let i=0;i<dots.length;i++){dots[i].classList.remove('active')}
+    dots[n].classList.add('active');
+    idx=n;
+  }
+  function changeSlide(n){let v=idx+n; if(v<0)v=slides.length-1; if(v>=slides.length)v=0; show(v)}
+  function currentSlide(n){show(n)}
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')changeSlide(1); if(e.key==='ArrowLeft')changeSlide(-1)})
+  buildDots();
+</script>
+</body>
+</html>

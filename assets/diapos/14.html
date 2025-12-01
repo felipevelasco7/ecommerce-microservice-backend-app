@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stack de Observabilidad</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #ea580c; /* Prometheus Orange */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 35% 62%; /* Split for Config vs Dashboard */
+            gap: 3%;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+
+        .icon-orange { background-color: #fff7ed; color: #c2410c; }
+        .icon-red { background-color: #fef2f2; color: #dc2626; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #ea580c;
+            margin-right: 10px;
+            margin-top: 4px;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95rem;
+            margin-bottom: 2px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.85rem;
+            color: #6b7280;
+            line-height: 1.3;
+            display: block;
+        }
+
+        /* Config Block */
+        .config-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.7rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+            margin-top: auto;
+        }
+
+        .config-line { display: block; line-height: 1.4; }
+        .key { color: #f472b6; }
+        .val { color: #60a5fa; }
+        .str { color: #a5f3fc; }
+
+        /* Mock Dashboard Styles */
+        .dashboard-container {
+            background-color: #111827; /* Dark Mode Grafana */
+            border-radius: 12px;
+            border: 1px solid #374151;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .dash-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 12px;
+        }
+
+        .dash-title {
+            color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .dash-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            flex: 1;
+        }
+
+        .dash-panel {
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .metric-green { color: #34d399; }
+        .metric-yellow { color: #fbbf24; }
+        .metric-red { color: #f87171; }
+
+        .sparkline {
+            height: 4px;
+            width: 100%;
+            background-color: #374151;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: auto;
+        }
+        
+        .sparkline-fill { height: 100%; border-radius: 2px; }
+
+        .graph-panel {
+            grid-column: span 2;
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 12px;
+            position: relative;
+        }
+
+        /* Simulated Graph Lines */
+        .graph-area {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 120px;
+            border-bottom: 1px solid #4b5563;
+            border-left: 1px solid #4b5563;
+            padding: 4px;
+        }
+        .bar {
+            flex: 1;
+            background-color: #3b82f6;
+            opacity: 0.7;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .alert-panel {
+            grid-column: span 1;
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .alert-item {
+            background-color: #450a0a;
+            border-left: 3px solid #ef4444;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+
+        .alert-text { color: #fecaca; font-size: 0.7rem; font-weight: 600; display: block; }
+        .alert-sub { color: #fca5a5; font-size: 0.65rem; display: block; }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        .badge-prom { background-color: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            margin-left: 10px;
+        }
+        
+        .stat-group { display: flex; align-items: center; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Stack de Observabilidad</h1>
+<p class="subtitle">Monitoreo integral con Prometheus, Grafana y AlertManager</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Configuration -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-orange">
+<i class="fas fa-eye"></i>
+</div>
+<h2 class="section-title">Arquitectura de Monitoreo</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Prometheus Scraping <span class="badge badge-prom">Pull Model</span></span>
+<span class="feature-desc">Recolección automática cada 15s desde endpoints <code>/actuator/prometheus</code> expuestos por Spring Boot.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Métricas Completas</span>
+<span class="feature-desc">JVM (Heap, GC), Tomcat (Sessions), JDBC (Connections) y métricas de negocio personalizadas.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Acceso Seguro</span>
+<span class="feature-desc">Acceso local via <code>kubectl port-forward</code> sin exponer puertos de gestión a internet pública.</span>
+</div>
+</li>
+</ul>
+</div>
+<div class="section-card" style="flex: 1;">
+<div class="section-header">
+<div class="icon-box icon-red">
+<i class="fas fa-bell"></i>
+</div>
+<h2 class="section-title">Sistema de Alertas</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon" style="color: #dc2626;"></i>
+<div class="feature-content">
+<span class="feature-title">Reglas Críticas Configuradas</span>
+<span class="feature-desc">ServiceDown (up == 0), HighCPU (&gt;80%), HighMemory, DBConnPoolSaturation, CrashLoopBackOff.</span>
+</div>
+</li>
+</ul>
+<div class="config-block">
+<span class="config-line"><span class="key">groups:</span></span>
+<span class="config-line">  - <span class="key">name:</span> <span class="str">kubernetes-apps</span></span>
+<span class="config-line">    <span class="key">rules:</span></span>
+<span class="config-line">    - <span class="key">alert:</span> <span class="str">PodCrashLooping</span></span>
+<span class="config-line">      <span class="key">expr:</span> <span class="val">increase(kube_pod_container_status_restarts_total[1m]) &gt; 3</span></span>
+<span class="config-line">      <span class="key">for:</span> <span class="val">2m</span></span>
+<span class="config-line">      <span class="key">labels:</span></span>
+<span class="config-line">        <span class="key">severity:</span> <span class="str">critical</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: Dashboard Mockup -->
+<div class="column">
+    <img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/grafana1.png?raw=true" alt="grafana">
+    <img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/grafana.png?raw=true" alt="grafana">
+   
+</div>
+
+
+</div>
+</body>
+</html>

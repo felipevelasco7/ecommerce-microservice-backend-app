@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bonificaciones Implementadas</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #f59e0b; /* Amber for Bonus/Achievements */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #fffbeb; /* Very light amber tint background */
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-blue { background-color: #eff6ff; color: #2563eb; }
+        .icon-rose { background-color: #fff1f2; color: #e11d48; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #f59e0b; /* Amber check for bonuses */
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-cloud { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-sec { background-color: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-ops { background-color: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #fef3c7; /* Amber pill */
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #92400e;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #d97706; }
+
+        /* Bonus Box */
+        .bonus-highlight {
+            margin-top: auto;
+            padding: 16px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            border: 1px dashed #cbd5e1;
+        }
+        .bonus-tag {
+            display: inline-block;
+            background: #0f172a;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-right: 6px;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Bonificaciones Implementadas</h1>
+<p class="subtitle">Funcionalidades avanzadas y valor agregado más allá de los requisitos básicos</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Cloud & Security -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-blue">
+<i class="fas fa-cloud-shield"></i>
+</div>
+<h2 class="section-title">Integración Cloud &amp; Seguridad</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Google Cloud Native <span class="badge badge-cloud">GCP</span></span>
+<span class="feature-desc">Despliegue en GKE (Google Kubernetes Engine) con 8 nodos, Container Registry (GCR), Cloud Load Balancing y Persistent Disks SSD.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Seguridad Avanzada (DevSecOps) <span class="badge badge-sec">Security</span></span>
+<span class="feature-desc">Implementación de Pod Security Standards (Restricted Profile), Network Policies para microsegmentación y Sealed Secrets con cifrado asimétrico.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Escaneo de Vulnerabilidades</span>
+<span class="feature-desc">Pipeline de seguridad continuo integrado en GitHub Actions para análisis estático (SAST), dependencias y contenedores.</span>
+</div>
+</li>
+</ul>
+<div class="bonus-highlight">
+<div style="margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; color: #475569;">Tecnologías Adicionales:</div>
+<div>
+<span class="bonus-tag">GKE Autopilot</span>
+<span class="bonus-tag">Trivy Scanner</span>
+<span class="bonus-tag">Sealed Secrets</span>
+<span class="bonus-tag">Cert-Manager</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Ops & Delivery -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-rose">
+<i class="fas fa-rocket"></i>
+</div>
+<h2 class="section-title">Excelencia Operacional</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Observabilidad Empresarial <span class="badge badge-ops">SRE</span></span>
+<span class="feature-desc">Stack completo configurado (Prometheus, Grafana, Loki, Zipkin) con dashboards de negocio y alertas inteligentes proactivas.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Progressive Delivery</span>
+<span class="feature-desc">Estrategias de despliegue avanzadas implementadas: Canary Deployments (tráfico gradual) y Blue-Green (cero downtime).</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Chaos Engineering &amp; Resiliencia</span>
+<span class="feature-desc">Pruebas de inyección de fallos controlados para validar la recuperación automática y la estabilidad del cluster.</span>
+</div>
+</li>
+</ul>
+<div class="bonus-highlight">
+<div style="margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; color: #475569;">Prácticas Avanzadas:</div>
+<div>
+<span class="bonus-tag">GitOps Flow</span>
+<span class="bonus-tag">Canary Release</span>
+<span class="bonus-tag">Chaos Mesh</span>
+<span class="bonus-tag">SLA/SLO</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+</div>
+</body>
+</html>

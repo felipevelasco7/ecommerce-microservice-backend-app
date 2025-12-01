@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Almacenamiento PostgreSQL</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #336791; /* Postgres Blue */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-postgres { background-color: #e0f2fe; color: #0369a1; }
+        .icon-storage { background-color: #f0fdf4; color: #15803d; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #336791;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Config Code Block */
+        .config-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+
+        .config-line {
+            display: block;
+            line-height: 1.5;
+        }
+
+        .key { color: #f472b6; }
+        .val { color: #60a5fa; }
+        .comment { color: #9ca3af; }
+        .string { color: #a5f3fc; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-db { background-color: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+        .badge-pvc { background-color: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Almacenamiento PostgreSQL</h1>
+<p class="subtitle">Implementación de persistencia de datos mediante StatefulSets y Persistent Volumes en GKE</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: StatefulSet -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-postgres">
+<i class="fas fa-database"></i>
+</div>
+<h2 class="section-title">PostgreSQL StatefulSet</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Workload de Base de Datos <span class="badge badge-db">Puerto 5432</span></span>
+<span class="feature-desc">Despliegue utilizando <code>StatefulSet</code> para garantizar identidad de red estable y ordenamiento secuencial de pods.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Conexión Centralizada</span>
+<span class="feature-desc">Punto único de verdad para todos los microservicios (User, Product, Order) mediante servicio interno Kubernetes.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Gestión de Identidad</span>
+<span class="feature-desc">Nombres de pods predecibles (<code>postgres-0</code>) esenciales para operaciones de mantenimiento y backup.</span>
+</div>
+</li>
+</ul>
+<div class="config-block">
+<span class="config-line comment"># postgres-statefulset.yaml</span>
+<span class="config-line"><span class="key">kind:</span> <span class="val">StatefulSet</span></span>
+<span class="config-line"><span class="key">metadata:</span></span>
+<span class="config-line">  <span class="key">name:</span> <span class="string">postgres</span></span>
+<span class="config-line"><span class="key">spec:</span></span>
+<span class="config-line">  <span class="key">serviceName:</span> <span class="string">"postgres"</span></span>
+<span class="config-line">  <span class="key">replicas:</span> <span class="val">1</span></span>
+<span class="config-line">  <span class="key">selector:</span></span>
+<span class="config-line">    <span class="key">matchLabels:</span></span>
+<span class="config-line">      <span class="key">app:</span> <span class="string">postgres</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: Persistent Storage -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-storage">
+<i class="fas fa-hdd"></i>
+</div>
+<h2 class="section-title">Persistent Volumes (PVC)</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Almacenamiento GKE <span class="badge badge-pvc">SSD</span></span>
+<span class="feature-desc">Uso de <code>StorageClass: standard-rwo</code> mapeado a Google Persistent Disks (SSD) para alto rendimiento I/O.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Aprovisionamiento Dinámico</span>
+<span class="feature-desc">Solicitud automática de volumen (PVC) de <strong>5Gi</strong> por réplica, garantizando persistencia tras reinicios.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Access Modes</span>
+<span class="feature-desc">Configuración <code>ReadWriteOnce</code> para asegurar que el volumen sea montado exclusivamente por el pod de base de datos.</span>
+</div>
+</li>
+</ul>
+<div class="config-block" style="background-color: #1f2937; border-color: #374151;">
+<span class="config-line comment"># Volume Claim Template</span>
+<span class="config-line"><span class="key">volumeClaimTemplates:</span></span>
+<span class="config-line">  - <span class="key">metadata:</span></span>
+<span class="config-line">      <span class="key">name:</span> <span class="string">postgres-pvc</span></span>
+<span class="config-line">    <span class="key">spec:</span></span>
+<span class="config-line">      <span class="key">accessModes:</span> <span class="string">[ "ReadWriteOnce" ]</span></span>
+<span class="config-line">      <span class="key">storageClassName:</span> <span class="string">"standard-rwo"</span></span>
+<span class="config-line">      <span class="key">resources:</span></span>
+<span class="config-line">        <span class="key">requests:</span></span>
+<span class="config-line">          <span class="key">storage:</span> <span class="val">5Gi</span></span>
+</div>
+</div>
+</div>
+</div>
+
+
+</div>
+</body>
+</html>

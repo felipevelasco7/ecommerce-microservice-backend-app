@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Repositorio y Operación</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #f59e0b; /* Amber for Ops/Repo */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-amber { background-color: #fffbeb; color: #d97706; }
+        .icon-blue { background-color: #eff6ff; color: #2563eb; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #10b981;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Folder Structure Block */
+        .folder-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.75rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .folder-line {
+            display: flex;
+            line-height: 1.6;
+            white-space: nowrap;
+        }
+        
+        .folder-icon { color: #fbbf24; margin-right: 8px; width: 14px; text-align: center; }
+        .file-icon { color: #9ca3af; margin-right: 8px; width: 14px; text-align: center; }
+        .comment { color: #6b7280; margin-left: 10px; font-style: italic; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-auto { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .badge-ops { background-color: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body style="">
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Repositorio y Operación</h1>
+<p class="subtitle">Estructura organizada, automatización de scripts y gestión operativa del cluster</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Repository Structure -->
+<div class="column">
+<div class="section-card" style="position: relative; transform: translate(0px, -28.9764px);">
+<div class="section-header">
+<div class="icon-box icon-amber">
+<i class="fas fa-folder-tree"></i>
+</div>
+<h2 class="section-title">Estructura Organizada</h2>
+</div>
+<p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 12px;">Organización lógica de componentes para facilitar mantenimiento y escalabilidad.</p>
+<div class="folder-block">
+<div class="folder-line"><span class="folder-icon">📁</span> ecommerce-backend/</div>
+<div class="folder-line">&nbsp;&nbsp;├── <span class="folder-icon">📁</span> microservices/ <span class="comment"># Código fuente (11 servicios)</span></div>
+<div class="folder-line">&nbsp;&nbsp;├── <span class="folder-icon">📁</span> k8s/ <span class="comment"># Manifiestos Kubernetes</span></div>
+<div class="folder-line">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="folder-icon">📁</span> namespaces/ <span class="comment"># Separación de ambientes</span></div>
+<div class="folder-line">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="folder-icon">📁</span> deployments/ <span class="comment"># Apps y DBs</span></div>
+<div class="folder-line">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="folder-icon">📁</span> monitoring/ <span class="comment"># Stack Observabilidad</span></div>
+<div class="folder-line">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="folder-icon">📁</span> security/ <span class="comment"># Network Policies &amp; RBAC</span></div>
+<div class="folder-line">&nbsp;&nbsp;├── <span class="folder-icon">📁</span> helm/ <span class="comment"># Helm Charts parametrizados</span></div>
+<div class="folder-line">&nbsp;&nbsp;├── <span class="folder-icon">📁</span> .github/workflows/ <span class="comment"># 66+ Pipelines CI/CD</span></div>
+<div class="folder-line">&nbsp;&nbsp;├── <span class="folder-icon">📁</span> docs/ <span class="comment"># Documentación técnica</span></div>
+<div class="folder-line">&nbsp;&nbsp;└── <span class="folder-icon">📁</span> scripts/ <span class="comment"># Automatización operativa</span></div>
+<div class="folder-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span class="file-icon">📄</span> deploy-all.sh</div>
+<div class="folder-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── <span class="file-icon">📄</span> test-ecommerce.sh</div>
+<div class="folder-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── <span class="file-icon">📄</span> pause-cluster.sh</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Operations & Automation -->
+<div class="column">
+<div class="section-card" style="position: relative; transform: translate(-2.51968px, -31.4959px);">
+<div class="section-header">
+<div class="icon-box icon-blue">
+<i class="fas fa-cogs"></i>
+</div>
+<h2 class="section-title">Automatización y Operaciones</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Scripts de Automatización <span class="badge badge-auto">Bash</span></span>
+<span class="feature-desc">Suite completa de scripts en <code>/scripts</code> para build, deploy, testing, generación de evidencias y backups automatizados.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Gestión de Ambientes y RBAC</span>
+<span class="feature-desc">Separación lógica mediante namespaces (<code>dev</code>, <code>stage</code>, <code>prod</code>) con roles RBAC específicos para control de acceso granular.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Gestión de Costos (FinOps) <span class="badge badge-ops">Ops</span></span>
+<span class="feature-desc">Guías y scripts para pausar/reanudar el cluster (scale to 0) fuera de horario operativo para optimización de recursos.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Recuperación ante Desastres</span>
+<span class="feature-desc">Procedimientos documentados de restauración de backups y redeploy completo desde cero en caso de fallo catastrófico.</span>
+</div>
+</li>
+</ul>
+<div class="config-block" style="background-color: #eff6ff; border-color: #dbeafe; color: #1f2937; margin-top: 20px;">
+<span class="config-line" style="color: #374151; font-weight: 600;"># Ejemplo: Script de Testing End-to-End</span>
+<span class="config-line"><span style="color: #059669;">./scripts/testing/test-ecommerce.sh</span> <span style="color: #d97706;">--env=dev</span></span>
+<span class="config-line" style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">&gt; Ejecuta tests de integración contra todos los microservicios</span>
+<span class="config-line" style="color: #6b7280; font-size: 0.75rem;">&gt; Valida health checks y conectividad DB</span>
+<span class="config-line" style="color: #6b7280; font-size: 0.75rem;">&gt; Genera reporte de evidencias en /docs/evidencias/</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Stats -->
+
+</div>
+
+</body></html>

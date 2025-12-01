@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Arquitectura - Microservicios y Puertos</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+        
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+        
+        .header {
+            padding: 30px 60px 20px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #2563eb;
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        .table-container {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            background-color: white;
+            border: 1px solid #e5e7eb;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: #f3f4f6;
+            color: #374151;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        td {
+            padding: 10px 20px;
+            border-bottom: 1px solid #f3f4f6;
+            color: #4b5563;
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f9fafb;
+        }
+
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.025em;
+        }
+
+        .cat-gateway { background-color: #eff6ff; color: #2563eb; }
+        .cat-core { background-color: #f0fdf4; color: #16a34a; }
+        .cat-infra { background-color: #fdf2f8; color: #db2777; }
+        .cat-db { background-color: #fff7ed; color: #ea580c; }
+
+        .service-name {
+            font-family: 'Roboto Mono', monospace;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .port-badge {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+        }
+
+        .type-lb {
+            color: #2563eb;
+            font-weight: 500;
+        }
+        
+        .type-cluster {
+            color: #6b7280;
+        }
+        
+        .type-stateful {
+            color: #7c3aed;
+            font-weight: 500;
+        }
+
+        .stats-summary {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background-color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 1.2rem;
+        }
+
+        .stat-info h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #111827;
+            font-weight: 700;
+        }
+        
+        .stat-info p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .legend-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            justify-content: flex-end;
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Arquitectura: Microservicios y Puertos</h1>
+<p class="subtitle">Inventario completo de los 11 microservicios y componentes de infraestructura desplegados en Kubernetes</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Summary Stats -->
+<div class="stats-summary">
+<div class="stat-card">
+<div class="stat-icon bg-blue-100 text-blue-600">
+<i class="fas fa-cubes"></i>
+</div>
+<div class="stat-info">
+<h3>11</h3>
+<p>Microservicios</p>
+</div>
+</div>
+<div class="stat-card">
+<div class="stat-icon bg-green-100 text-green-600">
+<i class="fas fa-network-wired"></i>
+</div>
+<div class="stat-info">
+<h3>12+</h3>
+<p>Puertos Expuestos</p>
+</div>
+</div>
+<div class="stat-card">
+<div class="stat-icon bg-purple-100 text-purple-600">
+<i class="fas fa-database"></i>
+</div>
+<div class="stat-info">
+<h3>2</h3>
+<p>Datastores (PG/Redis)</p>
+</div>
+</div>
+<div class="stat-card">
+<div class="stat-icon bg-orange-100 text-orange-600">
+<i class="fas fa-door-open"></i>
+</div>
+<div class="stat-info">
+<h3>1</h3>
+<p>Public Entrypoint</p>
+</div>
+</div>
+</div>
+<!-- Matrix Table -->
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th style="width: 15%">Categoría</th>
+<th style="width: 20%">Microservicio</th>
+<th style="width: 10%">Puerto</th>
+<th style="width: 15%">Tipo K8s</th>
+<th style="width: 40%">Descripción y Funcionalidad</th>
+</tr>
+</thead>
+<tbody>
+<!-- Gateway -->
+<tr>
+<td><span class="category-badge cat-gateway">GATEWAY</span></td>
+<td><span class="service-name">api-gateway</span></td>
+<td><span class="port-badge">8080</span></td>
+<td><span class="type-lb"><i class="fas fa-globe mr-1"></i> LoadBalancer</span></td>
+<td>Punto de entrada único, enrutamiento dinámico, filtros de seguridad, rate limiting.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-gateway">GATEWAY</span></td>
+<td><span class="service-name">proxy-client</span></td>
+<td><span class="port-badge">8900</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Proxy inverso para comunicación interna y balanceo de carga cliente.</td>
+</tr>
+<!-- Core Services -->
+<tr>
+<td><span class="category-badge cat-core">CORE</span></td>
+<td><span class="service-name">user-service</span></td>
+<td><span class="port-badge">8700</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Gestión de usuarios, autenticación JWT, perfiles y roles.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-core">CORE</span></td>
+<td><span class="service-name">product-service</span></td>
+<td><span class="port-badge">8500</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Catálogo de productos, inventario, categorías y búsqueda.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-core">CORE</span></td>
+<td><span class="service-name">order-service</span></td>
+<td><span class="port-badge">8300</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Gestión de pedidos, ciclo de vida de órdenes y coordinación.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-core">CORE</span></td>
+<td><span class="service-name">payment-service</span></td>
+<td><span class="port-badge">8400</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Procesamiento de pagos, integración con pasarelas y facturación.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-core">CORE</span></td>
+<td><span class="service-name">shipping-service</span></td>
+<td><span class="port-badge">8600</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Logística de envíos, tracking y cálculo de costos de transporte.</td>
+</tr>
+<!-- Infrastructure -->
+<tr>
+<td><span class="category-badge cat-infra">INFRA</span></td>
+<td><span class="service-name">service-discovery</span></td>
+<td><span class="port-badge">8761</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Eureka Server: registro y descubrimiento dinámico de servicios.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-infra">INFRA</span></td>
+<td><span class="service-name">cloud-config</span></td>
+<td><span class="port-badge">9296</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Servidor de configuración centralizada para todos los microservicios.</td>
+</tr>
+<tr>
+<td><span class="category-badge cat-infra">INFRA</span></td>
+<td><span class="service-name">zipkin</span></td>
+<td><span class="port-badge">9411</span></td>
+<td><span class="type-cluster">ClusterIP</span></td>
+<td>Sistema de tracing distribuido para monitoreo de latencia y flujo.</td>
+</tr>
+<!-- Database -->
+<tr>
+<td><span class="category-badge cat-db">DATABASE</span></td>
+<td><span class="service-name">postgres</span></td>
+<td><span class="port-badge">5432</span></td>
+<td><span class="type-stateful"><i class="fas fa-hdd mr-1"></i> StatefulSet</span></td>
+<td>Base de datos relacional centralizada con persistencia (PVC).</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Legend -->
+<div class="legend-container">
+<div class="legend-item"><div class="legend-dot bg-blue-500"></div>LoadBalancer (Público)</div>
+<div class="legend-item"><div class="legend-dot bg-gray-400"></div>ClusterIP (Interno)</div>
+<div class="legend-item"><div class="legend-dot bg-purple-500"></div>StatefulSet (Persistente)</div>
+</div>
+</div>
+</div>
+</body>
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/servicios%20y%20puertos.png?raw=true" alt="">
+</html>

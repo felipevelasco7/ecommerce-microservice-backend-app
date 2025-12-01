@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Logging Centralizado</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #8b5cf6; /* Purple for Observability/Infra */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-purple { background-color: #f5f3ff; color: #7c3aed; }
+        .icon-blue { background-color: #eff6ff; color: #2563eb; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #10b981;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Config Code Block */
+        .config-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+
+        .config-line {
+            display: block;
+            line-height: 1.5;
+        }
+
+        .key { color: #f472b6; }
+        .val { color: #60a5fa; }
+        .str { color: #a5f3fc; }
+        .comment { color: #9ca3af; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-live { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .badge-k8s { background-color: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Logging Centralizado (Loki + Promtail)</h1>
+<p class="subtitle">Implementación del stack PLG para recolección y análisis de logs distribuidos en tiempo real</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Architecture -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-purple">
+<i class="fas fa-layer-group"></i>
+</div>
+<h2 class="section-title">Arquitectura de Recolección</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Loki Backend <span class="badge badge-k8s">Storage</span></span>
+<span class="feature-desc">Sistema de agregación de logs altamente eficiente, indexado por etiquetas (labels) en lugar de texto completo.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Promtail DaemonSet (8 Nodos) <span class="badge badge-live">Agent</span></span>
+<span class="feature-desc">Agente desplegado en cada nodo del cluster GKE para descubrir pods y enviar logs automáticamente.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Fuentes de Ingesta Unificada</span>
+<span class="feature-desc">Logs de aplicación (Spring Boot), Access logs (Gateway), Consultas lentas (PostgreSQL) y Eventos del sistema.</span>
+</div>
+</li>
+</ul>
+<div class="config-block">
+<span class="config-line comment"># promtail-config.yaml</span>
+<span class="config-line"><span class="key">scrape_configs:</span></span>
+<span class="config-line">  - <span class="key">job_name:</span> <span class="str">kubernetes-pods</span></span>
+<span class="config-line">    <span class="key">kubernetes_sd_configs:</span></span>
+<span class="config-line">      - <span class="key">role:</span> <span class="str">pod</span></span>
+<span class="config-line">    <span class="key">relabel_configs:</span></span>
+<span class="config-line">      - <span class="key">source_labels:</span> <span class="str">[__meta_kubernetes_pod_label_app]</span></span>
+<span class="config-line">        <span class="key">target_label:</span> <span class="str">app</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: Troubleshooting -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-blue">
+<i class="fas fa-search-location"></i>
+</div>
+<h2 class="section-title">Búsqueda y Troubleshooting</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Filtrado por Etiquetas (Labels)</span>
+<span class="feature-desc">Consultas rápidas por <code>namespace</code>, <code>app</code>, <code>pod</code> y <code>level</code> (INFO, ERROR, WARN).</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Live Tailing en Grafana</span>
+<span class="feature-desc">Visualización de logs en tiempo real para diagnóstico inmediato durante despliegues o incidencias.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Correlación Logs-Métricas</span>
+<span class="feature-desc">Navegación directa desde un pico de error en un dashboard de métricas a los logs exactos del evento.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Retención y Almacenamiento</span>
+<span class="feature-desc">Políticas de retención configuradas para balancear costos de storage y necesidad de diagnóstico histórico.</span>
+</div>
+</li>
+</ul>
+<div class="config-block" style="background-color: #eff6ff; border-color: #dbeafe; color: #1f2937;">
+<span class="config-line" style="color: #374151; font-weight: 600;">// LogQL Query Example</span>
+<span class="config-line"><span style="color: #2563eb;">{namespace=</span><span style="color: #d97706;">"dev"</span><span style="color: #2563eb;">, app=</span><span style="color: #d97706;">"order-service"</span><span style="color: #2563eb;">}</span></span>
+<span class="config-line"><span style="color: #059669;">|=</span> <span style="color: #d97706;">"ERROR"</span></span>
+<span class="config-line"><span style="color: #059669;">|</span> <span style="color: #7c3aed;">json</span></span>
+<span class="config-line"><span style="color: #059669;">|</span> <span style="color: #7c3aed;">duration</span> &gt; <span style="color: #d97706;">500ms</span></span>
+<span class="config-line comment" style="color: #6b7280;"># Filtra errores JSON con duración &gt; 500ms</span>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</body>
+</html>

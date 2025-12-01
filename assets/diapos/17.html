@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Autoscaling HPA + KEDA</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #f59e0b; /* Orange/Amber for Autoscaling */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-amber { background-color: #fffbeb; color: #d97706; }
+        .icon-blue { background-color: #eff6ff; color: #2563eb; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #10b981;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Config Code Block */
+        .config-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+
+        .config-line {
+            display: block;
+            line-height: 1.5;
+        }
+
+        .key { color: #f472b6; }
+        .val { color: #60a5fa; }
+        .comment { color: #9ca3af; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-live { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .badge-event { background-color: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Autoscaling Inteligente: HPA + KEDA</h1>
+<p class="subtitle">Escalado horizontal basado en recursos y eventos para elasticidad total</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: HPA (Resource Based) -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-blue">
+<i class="fas fa-tachometer-alt"></i>
+</div>
+<h2 class="section-title">Horizontal Pod Autoscaler (HPA)</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Escalado por Recursos <span class="badge badge-live">Standard</span></span>
+<span class="feature-desc">Configurado para todos los microservicios basado en consumo de CPU (target: 70%) y Memoria (target: 80%).</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Límites y Requests Optimizados</span>
+<span class="feature-desc">Definición precisa de requests/limits para evitar OOMKilled y asegurar QoS adecuado.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Rangos de Replicas Dinámicos</span>
+<span class="feature-desc">Configuración min/max replicas (ej. 2-10) adaptada a la criticidad de cada servicio.</span>
+</div>
+</li>
+</ul>
+<div class="config-block" style="background-color: #eff6ff; border-color: #dbeafe; color: #1f2937;">
+<span class="config-line" style="color: #374151; font-weight: 600;"># HPA Configuration Example</span>
+<span class="config-line"><span style="color: #2563eb;">metrics:</span></span>
+<span class="config-line">  - <span style="color: #2563eb;">type:</span> <span style="color: #d97706;">Resource</span></span>
+<span class="config-line">    <span style="color: #2563eb;">resource:</span></span>
+<span class="config-line">      <span style="color: #2563eb;">name:</span> <span style="color: #059669;">cpu</span></span>
+<span class="config-line">      <span style="color: #2563eb;">target:</span></span>
+<span class="config-line">        <span style="color: #2563eb;">type:</span> <span style="color: #d97706;">Utilization</span></span>
+<span class="config-line">        <span style="color: #2563eb;">averageUtilization:</span> <span style="color: #7c3aed;">70</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: KEDA (Event Based) -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-amber">
+<i class="fas fa-bolt"></i>
+</div>
+<h2 class="section-title">KEDA Event-Driven Autoscaling</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">5 ScaledObjects Activos <span class="badge badge-event">Advanced</span></span>
+<span class="feature-desc">Implementados para: API Gateway, User, Product, Order y Payment Service.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Métricas Customizadas</span>
+<span class="feature-desc">Escalado basado en HTTP Request Rate (Prometheus), tamaño de colas y latencia de respuesta.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Validación en Pruebas de Carga</span>
+<span class="feature-desc">Capacidad demostrada de escalar de 2 a 10 pods en &lt;1min durante picos de tráfico simulados.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Escalado a Cero (Scale-to-Zero)</span>
+<span class="feature-desc">Posibilidad de apagar servicios no críticos (worker nodes) cuando no hay actividad.</span>
+</div>
+</li>
+</ul>
+<div class="config-block">
+<span class="config-line comment"># KEDA ScaledObject for API Gateway</span>
+<span class="config-line"><span class="key">triggers:</span></span>
+<span class="config-line">  - <span class="key">type:</span> <span class="val">prometheus</span></span>
+<span class="config-line">    <span class="key">metadata:</span></span>
+<span class="config-line">      <span class="key">serverAddress:</span> <span class="val">http://prometheus-server</span></span>
+<span class="config-line">      <span class="key">metricName:</span> <span class="val">http_requests_total</span></span>
+<span class="config-line">      <span class="key">threshold:</span> <span class="val">'100'</span></span>
+<span class="config-line">      <span class="key">query:</span> <span class="val">sum(rate(http_requests_total[2m]))</span></span>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</body>
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/hpa%20y%20networkpolicie.png?raw=true" alt="hpa">
+</html>

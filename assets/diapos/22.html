@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Resultados y Contacto</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 40px 60px 20px 60px;
+            z-index: 10;
+            background-color: transparent;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 80px;
+            background-color: #2563eb; /* Blue Primary */
+            border-radius: 3px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.8rem;
+            color: #111827;
+            line-height: 1.1;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: #4b5563;
+            font-size: 1.1rem;
+            margin-top: 12px;
+            font-weight: 400;
+            max-width: 800px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 10px 60px 40px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        /* Results Grid */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+        }
+
+        .result-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+
+        .result-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+
+        .bg-blue { background-color: #eff6ff; color: #2563eb; }
+        .bg-green { background-color: #ecfdf5; color: #059669; }
+        .bg-purple { background-color: #f5f3ff; color: #7c3aed; }
+        .bg-orange { background-color: #fff7ed; color: #ea580c; }
+        .bg-teal { background-color: #f0fdfa; color: #0d9488; }
+
+        .result-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: #6b7280;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        /* KPIs Strip */
+        .kpi-strip {
+            background-color: #1f2937;
+            border-radius: 12px;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .kpi-title {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-right: 40px;
+            border-right: 1px solid #374151;
+            padding-right: 40px;
+        }
+
+        .kpi-group {
+            display: flex;
+            gap: 60px;
+            flex: 1;
+        }
+
+        .kpi-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kpi-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .kpi-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .kpi-tag {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .tag-success { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .tag-info { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+
+        /* Bottom Section */
+        .bottom-section {
+            display: flex;
+            gap: 24px;
+            margin-top: auto;
+        }
+
+        .repo-card {
+            flex: 3;
+            background-color: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .repo-info h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 4px 0;
+        }
+
+        .repo-link {
+            font-family: 'Roboto Mono', monospace;
+            color: #4b5563;
+            font-size: 0.9rem;
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .contact-card {
+            flex: 2;
+            background-color: #2563eb;
+            border-radius: 12px;
+            padding: 24px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .contact-card::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .author-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+        }
+
+        .author-role {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 12px;
+        }
+
+        .contact-detail {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Resultados y Cierre</h1>
+<p class="subtitle">Proyecto Finalizado: Plataforma de E-commerce Cloud-Native en Google Kubernetes Engine</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Key Results Grid -->
+<div class="results-grid">
+<div class="result-card">
+<div class="result-icon bg-blue">
+<i class="fas fa-cubes"></i>
+</div>
+<div class="result-value">11</div>
+<div class="result-label">Microservicios<br/>Desplegados</div>
+</div>
+<div class="result-card">
+<div class="result-icon bg-purple">
+<i class="fas fa-rocket"></i>
+</div>
+<div class="result-value">5</div>
+<div class="result-label">Pipelines CI/CD<br/>Automatizados</div>
+</div>
+<div class="result-card">
+<div class="result-icon bg-orange">
+<i class="fas fa-server"></i>
+</div>
+<div class="result-value">8</div>
+<div class="result-label">Nodos GKE<br/>e2-medium</div>
+</div>
+<div class="result-card">
+<div class="result-icon bg-green">
+<i class="fas fa-tachometer-alt"></i>
+</div>
+<div class="result-value">Auto</div>
+<div class="result-label">Scaling HPA<br/>&amp; KEDA</div>
+</div>
+<div class="result-card">
+<div class="result-icon bg-teal">
+<i class="fas fa-shield-alt"></i>
+</div>
+<div class="result-value">100%</div>
+<div class="result-label">Seguridad &amp;<br/>Observabilidad</div>
+</div>
+</div>
+
+<!-- Bottom Section: Repo & Contact -->
+<div class="bottom-section">
+<div class="repo-card">
+<div class="repo-info">
+<h3>Código Fuente &amp; Documentación</h3>
+<p style="color: #6b7280; font-size: 0.9rem; margin: 0;">Disponible públicamente en GitHub con guías completas.</p>
+</div>
+<div class="repo-link">
+<i class="fab fa-github" style="font-size: 1.2rem;"></i>
+                    felipevelasco7/ecommerce-microservice-backend-app
+                </div>
+</div>
+<div class="contact-card">
+<h3 class="author-name">Felipe Velasco</h3>
+<h3 class="author-name">Juan Sebastian Botero</h3>
+
+<div class="author-role"> Ingeniería de Telematica</div>
+<div class="contact-detail">
+<i class="fas fa-envelope"></i>
+                    felipe.velasco@u.icesi.edu.co
+                </div>
+<div style="margin-top: 12px; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+<i class="fas fa-university"></i> UNIVERSIDAD ICESI
+                </div>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

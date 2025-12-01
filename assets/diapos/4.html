@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Arquitectura - Flujo y Comunicación</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            position: relative;
+        }
+
+        .header {
+            padding: 20px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #2563eb;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 5px;
+        }
+
+        .diagram-container {
+            flex: 1;
+            position: relative;
+            background-color: #f8fafc;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Architecture Layers */
+        .layer {
+            background-color: white;
+            border-radius: 12px;
+            border: 1px dashed #cbd5e1;
+            padding: 15px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .layer-title {
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background-color: #f8fafc;
+            padding: 0 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Nodes */
+        .node {
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 2;
+        }
+
+        .node-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .node-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .node-sub {
+            font-size: 0.65rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        /* Specific Node Styles */
+        .node-client {
+            background-color: #eff6ff;
+            border: 2px solid #3b82f6;
+            color: #1e40af;
+            width: 100px;
+            height: 80px;
+        }
+
+        .node-gateway {
+            background-color: #f0fdf4;
+            border: 2px solid #22c55e;
+            color: #15803d;
+            width: 120px;
+            height: 100px;
+        }
+
+        .node-service {
+            background-color: #fff7ed;
+            border: 2px solid #f97316;
+            color: #c2410c;
+            width: 100px;
+            height: 80px;
+            margin: 0 5px;
+        }
+
+        .node-db {
+            background-color: #f5f3ff;
+            border: 2px solid #8b5cf6;
+            color: #6d28d9;
+            width: 100px;
+            height: 80px;
+        }
+
+        .node-infra {
+            background-color: #f1f5f9;
+            border: 2px solid #64748b;
+            color: #334155;
+            width: 100px;
+            height: 70px;
+            margin: 5px;
+        }
+
+        .node-obs {
+            background-color: #fff1f2;
+            border: 2px solid #f43f5e;
+            color: #be123c;
+            width: 90px;
+            height: 70px;
+            margin: 5px;
+        }
+
+        /* Diagram Layout Grid */
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 120px 180px 1fr 140px;
+            grid-template-rows: auto auto auto;
+            gap: 30px;
+            width: 100%;
+            height: 100%;
+            max-width: 1100px;
+        }
+
+        /* Connectors using SVG */
+        .connector-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .connector-line {
+            fill: none;
+            stroke: #94a3b8;
+            stroke-width: 2;
+            stroke-dasharray: 5;
+            animation: dash 30s linear infinite;
+        }
+        
+        .connector-solid {
+            fill: none;
+            stroke: #64748b;
+            stroke-width: 2;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Section Columns */
+        .col-client {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .col-gateway {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .col-services {
+            grid-column: 3;
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 15px;
+            padding: 10px;
+        }
+
+        .col-data {
+            grid-column: 4;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .row-top {
+            grid-column: 2 / span 3;
+            grid-row: 1;
+            display: flex;
+            justify-content: center;
+            padding-bottom: 10px;
+        }
+
+        .row-bottom {
+            grid-column: 2 / span 3;
+            grid-row: 3;
+            display: flex;
+            justify-content: center;
+            padding-top: 10px;
+        }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            gap: 15px;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            color: #475569;
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body style="">
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Arquitectura - Flujo y Comunicación</h1>
+<p class="subtitle">Diagrama de flujo de datos, dependencias y componentes de infraestructura en el cluster GKE</p>
+</div>
+<!-- Main Diagram Area -->
+<div class="diagram-container">
+<!-- SVG Connections Layer -->
+<svg class="connector-svg">
+<defs>
+<marker id="arrowhead" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5">
+<polygon fill="#64748b" points="0 0, 10 3.5, 0 7"></polygon>
+</marker>
+<marker id="arrowhead-dashed" markerHeight="7" markerWidth="10" orient="auto" refX="9" refY="3.5">
+<polygon fill="#94a3b8" points="0 0, 10 3.5, 0 7"></polygon>
+</marker>
+</defs>
+<!-- Client to Gateway -->
+<path class="connector-solid" d="M 130,360 L 240,360" marker-end="url(#arrowhead)"></path>
+<!-- Gateway to Services -->
+<path class="connector-solid" d="M 370,360 L 450,300" marker-end="url(#arrowhead)"></path>
+<path class="connector-solid" d="M 370,360 L 450,360" marker-end="url(#arrowhead)"></path>
+<path class="connector-solid" d="M 370,360 L 450,420" marker-end="url(#arrowhead)"></path>
+<!-- Services to DB -->
+<path class="connector-solid" d="M 850,300 L 950,340" marker-end="url(#arrowhead)"></path>
+<path class="connector-solid" d="M 850,360 L 950,360" marker-end="url(#arrowhead)"></path>
+<path class="connector-solid" d="M 850,420 L 950,380" marker-end="url(#arrowhead)"></path>
+<!-- Discovery Connections (Dashed) -->
+<path class="connector-line" d="M 310,310 L 310,180 L 480,180" marker-end="url(#arrowhead-dashed)"></path>
+<path class="connector-line" d="M 650,260 L 650,180" marker-end="url(#arrowhead-dashed)"></path>
+<!-- Observability Connections (Dashed) -->
+<path class="connector-line" d="M 650,460 L 650,540" marker-end="url(#arrowhead-dashed)"></path>
+<path class="connector-line" d="M 950,410 L 850,550" marker-end="url(#arrowhead-dashed)"></path>
+</svg>
+<div class="grid-layout">
+<!-- Client -->
+<div class="col-client">
+<div class="node node-client">
+<i class="fas fa-laptop node-icon"></i>
+<div class="node-label">Client / Frontend</div>
+
+</div>
+</div>
+<!-- API Gateway -->
+<div class="col-gateway">
+<div class="node node-gateway">
+<i class="fas fa-server node-icon"></i>
+<div class="node-label">API Gateway</div>
+<div class="node-sub">Load Balancer (80)</div>
+</div>
+</div>
+<!-- Microservices Core -->
+<div class="col-services layer">
+<div class="layer-title">Microservicios Core</div>
+<!-- Row 1 -->
+<div class="node node-service">
+<i class="fas fa-user node-icon"></i>
+<div class="node-label">User Service</div>
+<div class="node-sub">:8700</div>
+</div>
+<div class="node node-service">
+<i class="fas fa-box node-icon"></i>
+<div class="node-label">Product Service</div>
+<div class="node-sub">:8500</div>
+</div>
+<div class="node node-service">
+<i class="fas fa-shopping-cart node-icon"></i>
+<div class="node-label">Order Service</div>
+<div class="node-sub">:8300</div>
+</div>
+<!-- Row 2 -->
+<div class="node node-service">
+<i class="fas fa-credit-card node-icon"></i>
+<div class="node-label">Payment Service</div>
+<div class="node-sub">:8400</div>
+</div>
+<div class="node node-service">
+<i class="fas fa-truck node-icon"></i>
+<div class="node-label">Shipping Service</div>
+<div class="node-sub">:8600</div>
+</div>
+<div class="node node-service">
+<i class="fas fa-heart node-icon"></i>
+<div class="node-label">Favourite Service</div>
+<div class="node-sub">:8800</div>
+</div>
+</div>
+<!-- Data Layer -->
+<div class="col-data">
+<div class="node node-db">
+<i class="fas fa-database node-icon"></i>
+<div class="node-label">PostgreSQL</div>
+<div class="node-sub">StatefulSet :5432</div>
+</div>
+<div class="node node-db" style="border-color: #ef4444; background-color: #fef2f2; color: #b91c1c;">
+<i class="fas fa-layer-group node-icon"></i>
+<div class="node-label">Redis</div>
+<div class="node-sub">Cache</div>
+</div>
+</div>
+<!-- Top Infrastructure -->
+<div class="row-top layer" style="border-style: solid; border-color: #e2e8f0;">
+<div class="layer-title">Infraestructura &amp; Discovery</div>
+<div style="display: flex;">
+<div class="node node-infra">
+<i class="fas fa-compass node-icon"></i>
+<div class="node-label">Eureka Server</div>
+<div class="node-sub">Discovery :8761</div>
+</div>
+<div class="node node-infra">
+<i class="fas fa-cogs node-icon"></i>
+<div class="node-label">Cloud Config</div>
+<div class="node-sub">Config Server :9296</div>
+</div>
+</div>
+</div>
+<!-- Bottom Observability -->
+<div class="row-bottom layer" style="border-style: solid; border-color: #e2e8f0;">
+<div class="layer-title">Observabilidad &amp; Monitoreo</div>
+<div style="display: flex;">
+<div class="node node-obs">
+<i class="fas fa-fire node-icon"></i>
+<div class="node-label">Prometheus</div>
+</div>
+<div class="node node-obs" style="border-color: #f59e0b; background-color: #fffbeb; color: #b45309;">
+<i class="fas fa-chart-area node-icon"></i>
+<div class="node-label">Grafana</div>
+</div>
+<div class="node node-obs" style="border-color: #10b981; background-color: #ecfdf5; color: #047857;">
+<i class="fas fa-search node-icon"></i>
+<div class="node-label">Zipkin</div>
+<div class="node-sub">Tracing</div>
+</div>
+<div class="node node-obs" style="border-color: #6366f1; background-color: #eef2ff; color: #4338ca;">
+<i class="fas fa-list-alt node-icon"></i>
+<div class="node-label">Loki</div>
+<div class="node-sub">Logs</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Legend -->
+<div class="legend">
+<div class="legend-item">
+<div class="legend-color" style="background-color: #3b82f6;"></div> Frontend
+                </div>
+<div class="legend-item">
+<div class="legend-color" style="background-color: #22c55e;"></div> Gateway
+                </div>
+<div class="legend-item">
+<div class="legend-color" style="background-color: #f97316;"></div> Microservicios
+                </div>
+<div class="legend-item">
+<div class="legend-color" style="background-color: #8b5cf6;"></div> Datos
+                </div>
+<div class="legend-item">
+<div class="legend-color" style="background-color: #64748b;"></div> Infra
+                </div>
+<div class="legend-item">
+<div class="legend-color" style="background-color: #f43f5e;"></div> Observabilidad
+                </div>
+<div class="legend-item ml-4">
+<span style="color: #64748b; font-weight: bold;">───</span> HTTP/TCP
+                </div>
+<div class="legend-item">
+<span style="color: #94a3b8; font-weight: bold;">- - -</span> Async/Meta
+                </div>
+</div>
+</div>
+</div>
+
+</body></html>

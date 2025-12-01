@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Helm Charts y GitOps</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;family=Roboto+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+            border-bottom: 1px solid #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #0f766e; /* Teal for DevOps/Helm */
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            overflow: hidden;
+            background-color: #f9fafb;
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .icon-teal { background-color: #f0fdfa; color: #0f766e; }
+        .icon-orange { background-color: #fff7ed; color: #c2410c; }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        /* List Styles */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .check-icon {
+            color: #0d9488;
+            margin-right: 12px;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.4;
+            display: block;
+        }
+
+        /* Dependency Flow */
+        .dependency-flow {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+            background-color: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .dep-step {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            background-color: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .dep-arrow {
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+
+        /* Code Block */
+        .config-block {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 15px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.75rem;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+
+        .config-line {
+            display: block;
+            line-height: 1.5;
+        }
+
+        .key { color: #f472b6; }
+        .val { color: #60a5fa; }
+        .comment { color: #9ca3af; }
+        .str { color: #a5f3fc; }
+
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .badge-helm { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .badge-gitops { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+        /* Stats Footer */
+        .stats-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-pill {
+            background-color: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-pill i { margin-right: 6px; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Empaquetado con Helm y GitOps</h1>
+<p class="subtitle">Gestión declarativa de infraestructura y ciclo de vida de aplicaciones</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Left Column: Helm Charts -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-teal">
+<i class="fas fa-dharmachakra"></i>
+</div>
+<h2 class="section-title">Helm Charts Standardized</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Estructura Modular por Servicio <span class="badge badge-helm">Helm v3</span></span>
+<span class="feature-desc">Templates reutilizables con <code>Chart.yaml</code> y <code>values.yaml</code> personalizados para cada microservicio.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Variables por Ambiente</span>
+<span class="feature-desc">Configuración jerárquica con overrides específicos para Dev, Stage y Prod garantizando aislamiento.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Gestión de Dependencias</span>
+<span class="feature-desc">Definición explícita del orden de despliegue para asegurar disponibilidad de servicios base.</span>
+</div>
+</li>
+</ul>
+                <div class="config-block">
+<span class="config-line comment"># helm/values.yaml (API Gateway)</span>
+<span class="config-line"><span class="key">replicaCount:</span> <span class="val">2</span></span>
+<span class="config-line"><span class="key">autoscaling:</span></span>
+<span class="config-line">  <span class="key">enabled:</span> <span class="val">true</span></span>
+<span class="config-line">  <span class="key">minReplicas:</span> <span class="val">2</span></span>
+<span class="config-line">  <span class="key">maxReplicas:</span> <span class="val">10</span></span>
+<span class="config-line"><span class="key">resources:</span></span>
+<span class="config-line">  <span class="key">limits:</span></span>
+<span class="config-line">    <span class="key">cpu:</span> <span class="str">"750m"</span></span>
+<span class="config-line">    <span class="key">memory:</span> <span class="str">"1536Mi"</span></span>
+</div>
+<div class="dependency-flow">
+<span class="dep-step">Infra</span> <i class="fas fa-arrow-right dep-arrow"></i>
+<span class="dep-step">DB</span> <i class="fas fa-arrow-right dep-arrow"></i>
+<span class="dep-step">Core</span> <i class="fas fa-arrow-right dep-arrow"></i>
+<span class="dep-step">Gateway</span> <i class="fas fa-arrow-right dep-arrow"></i>
+<span class="dep-step">Frontend</span>
+</div>
+</div>
+</div>
+<!-- Right Column: GitOps Workflow -->
+<div class="column">
+<div class="section-card">
+<div class="section-header">
+<div class="icon-box icon-orange">
+<i class="fas fa-code-branch"></i>
+</div>
+<h2 class="section-title">GitOps Workflow</h2>
+</div>
+<ul class="feature-list">
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Single Source of Truth <span class="badge badge-gitops">GitOps</span></span>
+<span class="feature-desc">El repositorio Git contiene el estado deseado completo del cluster, permitiendo auditoría y control de versiones.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Drift Detection &amp; Reconciliation</span>
+<span class="feature-desc">Detección automática de desviaciones entre el estado deseado (Git) y el estado actual (Cluster).</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Release History &amp; Rollbacks</span>
+<span class="feature-desc">Historial inmutable de cambios con capacidad de reversión instantánea a cualquier commit previo.</span>
+</div>
+</li>
+<li class="feature-item">
+<i class="fas fa-check-circle check-icon"></i>
+<div class="feature-content">
+<span class="feature-title">Automated Sync</span>
+<span class="feature-desc">Sincronización continua mediante pipelines CI/CD que aplican cambios de manifiestos automáticamente.</span>
+</div>
+</li>
+</ul>
+<div class="config-block" style="background-color: #fff7ed; border-color: #fed7aa; color: #1f2937;">
+<span class="config-line" style="color: #9a3412; font-weight: 600;">// Pipeline Deploy Step</span>
+<span class="config-line"><span style="color: #c2410c;">- name:</span> <span style="color: #ea580c;">Deploy to GKE</span></span>
+<span class="config-line">  <span style="color: #c2410c;">run:</span> <span style="color: #ea580c;">|</span></span>
+<span class="config-line">    <span style="color: #431407;">helm upgrade --install product-service \</span></span>
+<span class="config-line">    <span style="color: #431407;">./helm/product-service \</span></span>
+<span class="config-line">    <span style="color: #431407;">--namespace ${{ env.NAMESPACE }} \</span></span>
+<span class="config-line">    <span style="color: #431407;">--values ./helm/values-${{ env.ENV }}.yaml \</span></span>
+<span class="config-line">    <span style="color: #431407;">--set image.tag=${{ github.sha }}</span></span>
+</div>
+</div>
+</div>
+</div>
+
+
+</div>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Infraestructura GKE - Estadísticas</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: white;
+            color: #1f2937;
+            overflow-y: auto;
+        }
+        .slide-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            position: relative;
+        }
+        
+        .header {
+            padding: 30px 60px 10px 60px;
+            z-index: 10;
+            background-color: white;
+        }
+        
+        .title-bar {
+            height: 6px;
+            width: 60px;
+            background-color: #2563eb;
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            color: #111827;
+            line-height: 1;
+            margin: 0;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px 60px 40px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Top Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .stat-card {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            border-color: #d1d5db;
+        }
+
+        .stat-icon-wrapper {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+
+        .stat-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        
+        .stat-detail {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        /* Bottom Section with Chart and Lists */
+        .details-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+            min-height: 0; /* Important for nested flex/grid overflow */
+        }
+
+        .detail-box {
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+        }
+
+        .box-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .box-title i {
+            margin-right: 10px;
+            color: #2563eb;
+        }
+
+        .namespace-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .ns-badge {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #4b5563;
+            background-color: #f9fafb;
+            border: 1px solid #f3f4f6;
+        }
+        
+        .ns-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .resource-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .resource-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #f3f4f6;
+        }
+
+        .res-label {
+            font-size: 0.9rem;
+            color: #4b5563;
+            display: flex;
+            align-items: center;
+        }
+        
+        .res-label i {
+            width: 20px;
+            color: #9ca3af;
+            margin-right: 8px;
+        }
+
+        .res-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 180px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .cluster-info {
+            position: absolute;
+            top: 30px;
+            right: 60px;
+            background-color: #eff6ff;
+            color: #1e40af;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            border: 1px solid #dbeafe;
+        }
+
+        /* Specific Colors */
+        .blue-theme { background-color: #eff6ff; color: #2563eb; }
+        .green-theme { background-color: #f0fdf4; color: #16a34a; }
+        .purple-theme { background-color: #f5f3ff; color: #7c3aed; }
+        .orange-theme { background-color: #fff7ed; color: #ea580c; }
+    </style>
+</head>
+<body>
+<div class="slide-container">
+<!-- Cluster Location Badge -->
+<div class="cluster-info">
+<i class="fas fa-map-marker-alt mr-2"></i> us-central1-a (Iowa)
+    </div>
+<!-- Header -->
+<div class="header">
+<div class="title-bar"></div>
+<h1>Infraestructura Google Kubernetes Engine (GKE)</h1>
+<p class="subtitle">Especificaciones técnicas, segmentación y utilización de recursos del cluster ecommerce-cluster</p>
+</div>
+<!-- Main Content -->
+<div class="main-content">
+<!-- Top Stats Row -->
+<div class="stats-row">
+<!-- Nodes Stat -->
+<div class="stat-card">
+<div class="stat-icon-wrapper blue-theme">
+<i class="fas fa-server"></i>
+</div>
+<div class="stat-value">8</div>
+<div class="stat-label">Nodos Activos</div>
+<div class="stat-detail">Machine Type: e2-medium</div>
+</div>
+<!-- vCPU Stat -->
+<div class="stat-card">
+<div class="stat-icon-wrapper green-theme">
+<i class="fas fa-microchip"></i>
+</div>
+<div class="stat-value">16</div>
+<div class="stat-label">vCPUs Totales</div>
+<div class="stat-detail">2 vCPU por nodo</div>
+</div>
+<!-- RAM Stat -->
+<div class="stat-card">
+<div class="stat-icon-wrapper purple-theme">
+<i class="fas fa-memory"></i>
+</div>
+<div class="stat-value">32 GB</div>
+<div class="stat-label">Memoria RAM Total</div>
+<div class="stat-detail">4 GB RAM por nodo</div>
+</div>
+<!-- Utilization Stat -->
+<div class="stat-card">
+<div class="stat-icon-wrapper orange-theme">
+<i class="fas fa-tachometer-alt"></i>
+</div>
+<div class="stat-value">~70%</div>
+<div class="stat-label">Utilización Promedio</div>
+<div class="stat-detail">Eficiencia de recursos</div>
+</div>
+</div>
+<!-- Details Section -->
+<div class="details-section">
+<!-- Namespaces Box -->
+<div class="detail-box">
+<div class="box-title">
+<i class="fas fa-cubes"></i> Namespaces &amp; Segmentación
+                </div>
+<div class="namespace-grid">
+<div class="ns-badge"><div class="ns-dot bg-blue-500"></div>dev</div>
+<div class="ns-badge"><div class="ns-dot bg-red-500"></div>monitoring</div>
+<div class="ns-badge"><div class="ns-dot bg-yellow-500"></div>logging</div>
+<div class="ns-badge"><div class="ns-dot bg-purple-500"></div>keda</div>
+<div class="ns-badge"><div class="ns-dot bg-gray-500"></div>sealed-secrets</div>
+<div class="ns-badge"><div class="ns-dot bg-green-500"></div>ingress-nginx</div>
+</div>
+<div class="mt-4 text-sm text-gray-500">
+<p><i class="fas fa-info-circle mr-1 text-blue-400"></i> Aislamiento lógico completo para seguridad y gestión de recursos.</p>
+</div>
+</div>
+<!-- Resources Box -->
+<div class="detail-box">
+<div class="box-title">
+<i class="fas fa-layer-group"></i> Recursos Gestionados
+                </div>
+<div class="resource-list">
+<div class="resource-item">
+<span class="res-label"><i class="fas fa-box"></i> Pods Totales</span>
+<span class="res-value">45+</span>
+</div>
+<div class="resource-item">
+<span class="res-label"><i class="fas fa-network-wired"></i> Services</span>
+<span class="res-value">11</span>
+</div>
+<div class="resource-item">
+<span class="res-label"><i class="fas fa-hdd"></i> Persistent Volumes</span>
+<span class="res-value">25 Gi</span>
+</div>
+<div class="resource-item">
+<span class="res-label"><i class="fas fa-shield-alt"></i> Network Policies</span>
+<span class="res-value">15</span>
+</div>
+</div>
+</div>
+<!-- Utilization Chart Box -->
+<div class="detail-box">
+<div class="box-title">
+<i class="fas fa-chart-pie"></i> Distribución de Carga
+                </div>
+<div class="chart-container">
+<canvas id="utilizationChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    // Chart.js Configuration
+    const ctx = document.getElementById('utilizationChart').getContext('2d');
+    const utilizationChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Core Services', 'Monitoring Stack', 'Logging Stack', 'System/Kube', 'Free'],
+            datasets: [{
+                data: [35, 15, 15, 5, 30],
+                backgroundColor: [
+                    '#3b82f6', // blue-500
+                    '#ef4444', // red-500
+                    '#f59e0b', // amber-500
+                    '#6b7280', // gray-500
+                    '#e5e7eb'  // gray-200
+                ],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 10,
+                            family: "'Inter', sans-serif"
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.raw + '%';
+                        }
+                    }
+                }
+            },
+            cutout: '65%'
+        }
+    });
+</script>
+</body>
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/kubernetes%20gc.png?raw=true" alt="google console">
+<img src="https://github.com/felipevelasco7/ecommerce-microservice-backend-app/blob/master/assets/screenshots/gcl.png?raw=true" alt="google console">
+</html>
